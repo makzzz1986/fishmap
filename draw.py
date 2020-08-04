@@ -74,6 +74,19 @@ for ten in range(10):
 
 
 print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
+
+# add bboxes to plot
+coast.loc[len(coast), 'geometry'] = LineString([(bbox[0], bbox[1]), (bbox[2], bbox[1])])
+coast.loc[len(coast), 'geometry'] = LineString([(bbox[2], bbox[1]), (bbox[2], bbox[3])])
+coast.loc[len(coast), 'geometry'] = LineString([(bbox[2], bbox[3]), (bbox[0], bbox[3])])
+coast.loc[len(coast), 'geometry'] = LineString([(bbox[0], bbox[3]), (bbox[0], bbox[1])])
+
+coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[1]), (real_bbox[2], real_bbox[1])])
+coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[1]), (real_bbox[2], real_bbox[3])])
+coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[3]), (real_bbox[0], real_bbox[3])])
+coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[3]), (real_bbox[0], real_bbox[1])])
+
+
 print(coast)
 
 coast.plot()
