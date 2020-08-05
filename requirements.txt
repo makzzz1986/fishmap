@@ -1,0 +1,9 @@
+# Not needed? apt install python3-rtree?
+#
+#https://toblerity.org/rtree/install.html
+#https://libspatialindex.org/install.html
+#git clone https://github.com/libspatialindex/libspatialindex
+#cd libspatialindex
+#cmake -DCMAKE_INSTALL_PREFIX=/home/[username]/usr .
+#make
+#make install
