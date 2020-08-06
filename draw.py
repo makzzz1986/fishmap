@@ -1,7 +1,7 @@
 import geopandas
 import pandas
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString
+from shapely.geometry import Point, LineString, MultiPoint
 import scipy.special as sc
 
 
@@ -84,23 +84,31 @@ for _, fid, coastline in coast.itertuples():
         # removing not intersected:
         if not intersect.is_empty:
             intersection_list.append(intersect)
-            print(intersect)
+            # print(intersect)
             # drawing parted line
             if intersect.type == 'Point':
-                waves_ocean_list.append(LineString([wave.xy[0], intersect]))
+                waves_ocean_list.append(LineString([wave.coords[0], intersect]))
             if intersect.type == 'MultiPoint':
                 line_list = []
-                line_list.append(wave.xy[0].tolist())
+                print(wave)
+                line_list.append(wave.coords[0])
                 line_list.extend([[point.x, point.y] for point in intersect])
+                print(line_list)
                 # if it is odd, than it ends on the ground
-                if len(intersect) % 2 == 1:
-                    line_list.append(wave.xy[-1].tolist())
-                waves_ocean_list.append(LineString(line_list))
-print(waves_ocean_list)
-        
+                if len(intersect) % 2 == 0:
+                    line_list.append(wave.coords[-1]())
+                # print(line_list)
+                # print(len(line_list))
+                
+                # pair dots to lines!
+                for pair in range(0, len(line_list), 2):
+                    waves_ocean_list.append(LineString([line_list[pair], line_list[pair+1]]))
+                # waves_ocean_list.append(MultiPoint(line_list))
+waves_ocean_list.append(LineString(line_list))
+      
 intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)
 waves_ocean = geopandas.GeoDataFrame(geometry=waves_ocean_list)
-# print(intersection_points)
+# print(waves_ocean)
 
 combined = geopandas.GeoDataFrame(pandas.concat([coast, intersection_points, waves_ocean], ignore_index=True))
 # coast.loc[len(coast), 'geometry'] = intersection
@@ -122,5 +130,5 @@ coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[3]), (r
 # print(coast)
 # print(waves)
 
-waves_ocean.plot()
+combined.plot()
 plt.show()
