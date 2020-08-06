@@ -1,18 +1,9 @@
 import geopandas
 import pandas
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString, MultiPoint
+from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
 import scipy.special as sc
 
-
-def height(angle, bottom, max=9999):
-    # tangens!
-    height = bottom * sc.tandg(angle)
-    print(bottom, height, max)
-    if height > max:
-        return max
-    else:
-        return height
 
 # will be updated, works for the first quarter only 8()
 def wave_line(start_point, angle, bbox):
@@ -39,6 +30,24 @@ def wave_line(start_point, angle, bbox):
         end_point_x = ((ymax - start_point[1]) * sc.cotdg(angle)) + start_point[0]
     # print(start_point, (end_point_x, end_point_y))
     return [start_point, (end_point_x, end_point_y)]
+
+
+def wave_parted(wave, intersect):
+    # drawing parted line
+    if intersect.type == 'Point':
+        return LineString([wave.coords[0], intersect])
+    if intersect.type == 'MultiPoint':
+        line_list = []
+        multilinestrings = []
+        line_list.append(wave.coords[0])
+        line_list.extend([[point.x, point.y] for point in intersect])
+        # if it is odd, than it ends on the ground
+        if len(intersect) % 2 == 0:
+            line_list.append(wave.coords[-1]())
+        # pair dots to lines!
+        for pair in range(0, len(line_list), 2):
+            multilinestrings.append(LineString([line_list[pair], line_list[pair+1]]))
+        return MultiLineString(multilinestrings)
 
 bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 coast = geopandas.read_file('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox=bbox)
@@ -84,31 +93,12 @@ for _, fid, coastline in coast.itertuples():
         # removing not intersected:
         if not intersect.is_empty:
             intersection_list.append(intersect)
-            # print(intersect)
             # drawing parted line
-            if intersect.type == 'Point':
-                waves_ocean_list.append(LineString([wave.coords[0], intersect]))
-            if intersect.type == 'MultiPoint':
-                line_list = []
-                print(wave)
-                line_list.append(wave.coords[0])
-                line_list.extend([[point.x, point.y] for point in intersect])
-                print(line_list)
-                # if it is odd, than it ends on the ground
-                if len(intersect) % 2 == 0:
-                    line_list.append(wave.coords[-1]())
-                # print(line_list)
-                # print(len(line_list))
-                
-                # pair dots to lines!
-                for pair in range(0, len(line_list), 2):
-                    waves_ocean_list.append(LineString([line_list[pair], line_list[pair+1]]))
-                # waves_ocean_list.append(MultiPoint(line_list))
-waves_ocean_list.append(LineString(line_list))
+            waves_ocean_list.append(wave_parted(wave, intersect))
       
 intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)
 waves_ocean = geopandas.GeoDataFrame(geometry=waves_ocean_list)
-# print(waves_ocean)
+print(waves_ocean)
 
 combined = geopandas.GeoDataFrame(pandas.concat([coast, intersection_points, waves_ocean], ignore_index=True))
 # coast.loc[len(coast), 'geometry'] = intersection
