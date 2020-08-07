@@ -3,6 +3,7 @@ import pandas
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
 import scipy.special as sc
+from matplotlib.colors import ListedColormap
 
 
 # will be updated, works for the first quarter only 8()
@@ -32,13 +33,14 @@ def wave_line(start_point, angle, bbox):
     return [start_point, (end_point_x, end_point_y)]
 
 
-def wave_parted(wave, intersect):
+def wave_parted(wave, intersect, wave_dang=0):
     # drawing parted line
     if intersect.type == 'Point':
-        return LineString([wave.coords[0], intersect])
+        return {'waves': [LineString([wave.coords[0], intersect])], 'wave_dang': [wave_dang]}
     if intersect.type == 'MultiPoint':
         line_list = []
-        multilinestrings = []
+        # multilinestrings = []
+        result_list = [] # colored lines
         line_list.append(wave.coords[0])
         line_list.extend([[point.x, point.y] for point in intersect])
         # if it is odd, than it ends on the ground
@@ -46,8 +48,10 @@ def wave_parted(wave, intersect):
             line_list.append(wave.coords[-1]())
         # pair dots to lines!
         for pair in range(0, len(line_list), 2):
-            multilinestrings.append(LineString([line_list[pair], line_list[pair+1]]))
-        return MultiLineString(multilinestrings)
+            result_list.append(LineString([line_list[pair], line_list[pair+1]]))
+        # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
+        # because they are after ground.
+        return {'waves': result_list, 'wave_dang': [0 if x>0 else wave_dang for x in range(len(result_list))]} 
 
 bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 coast = geopandas.read_file('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox=bbox)
@@ -71,22 +75,31 @@ for _, n, r in coast.itertuples():
 
 real_bbox = (xmin, ymin, xmax, ymax)
 
+cmap = ListedColormap(['blue'], name='allblue')  # colormap
 wave_angle = 30
-precision = 30
-
-ysteps = (ymax - ymin) / precision
-xsteps = (xmax - xmin) / precision
+wave_dang = 10
+precision = 0.001
 
 # draw wave lines
 waves = geopandas.GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
-for step in range(precision):
-    waves.loc[len(waves), 'geometry'] = LineString(wave_line((xmin, ymin + (ysteps * step)), wave_angle, real_bbox))
-    waves.loc[len(waves), 'geometry'] = LineString(wave_line((xmin + (xsteps * step), ymin), wave_angle, real_bbox))
+
+xstep = xmin
+ystep = ymin
+while True:
+    waves.loc[len(waves), 'geometry'] = LineString(wave_line((xstep, ymin), wave_angle, real_bbox))
+    xstep += precision
+    if xstep >= xmax:
+        break
+while True:
+    waves.loc[len(waves), 'geometry'] = LineString(wave_line((xmin, ystep), wave_angle, real_bbox))
+    ystep += precision
+    if ystep >= ymax:
+        break
 
 
 # points of intersection
 intersection_list = []
-waves_ocean_list = []
+waves_intersected = {'waves': [], 'wave_dang': []}
 for _, fid, coastline in coast.itertuples():
     for _, wave in waves.itertuples():
         intersect = coastline.intersection(wave)
@@ -94,13 +107,20 @@ for _, fid, coastline in coast.itertuples():
         if not intersect.is_empty:
             intersection_list.append(intersect)
             # drawing parted line
-            waves_ocean_list.append(wave_parted(wave, intersect))
+            wave_parts = wave_parted(wave, intersect, wave_dang)
+            print(wave_parts, len(wave_parts['waves']), len(wave_parts['wave_dang']))
+            waves_intersected['waves'].extend(wave_parts['waves'])
+            waves_intersected['wave_dang'].extend(wave_parts['wave_dang'])
       
-intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)
-waves_ocean = geopandas.GeoDataFrame(geometry=waves_ocean_list)
-print(waves_ocean)
+print(waves_intersected)
+print(len(waves_intersected['waves']))
+print(len(waves_intersected['wave_dang']))
 
-combined = geopandas.GeoDataFrame(pandas.concat([coast, intersection_points, waves_ocean], ignore_index=True))
+intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)
+waves = geopandas.GeoDataFrame(waves_intersected['wave_dang'], geometry=waves_intersected['waves'], columns=['wave_dang'])
+print(waves)
+
+combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot(cmap=cmap)
 # coast.loc[len(coast), 'geometry'] = intersection
 
 # print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
