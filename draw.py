@@ -78,7 +78,7 @@ real_bbox = (xmin, ymin, xmax, ymax)
 
 wave_angle = 30
 wave_dang = 100
-precision = 0.001
+precision = 0.0001
 
 # draw wave lines
 waves = geopandas.GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
