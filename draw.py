@@ -3,7 +3,8 @@ import pandas
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
 import scipy.special as sc
-from matplotlib.colors import ListedColormap
+import numpy
+from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 
 
 # will be updated, works for the first quarter only 8()
@@ -75,9 +76,8 @@ for _, n, r in coast.itertuples():
 
 real_bbox = (xmin, ymin, xmax, ymax)
 
-cmap = ListedColormap(['blue'], name='allblue')  # colormap
 wave_angle = 30
-wave_dang = 10
+wave_dang = 100
 precision = 0.001
 
 # draw wave lines
@@ -108,19 +108,21 @@ for _, fid, coastline in coast.itertuples():
             intersection_list.append(intersect)
             # drawing parted line
             wave_parts = wave_parted(wave, intersect, wave_dang)
-            print(wave_parts, len(wave_parts['waves']), len(wave_parts['wave_dang']))
+            # print(wave_parts, len(wave_parts['waves']), len(wave_parts['wave_dang']))
             waves_intersected['waves'].extend(wave_parts['waves'])
             waves_intersected['wave_dang'].extend(wave_parts['wave_dang'])
       
-print(waves_intersected)
-print(len(waves_intersected['waves']))
-print(len(waves_intersected['wave_dang']))
+# print(waves_intersected)
+# print(len(waves_intersected['waves']))
+# print(len(waves_intersected['wave_dang']))
 
 intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)
 waves = geopandas.GeoDataFrame(waves_intersected['wave_dang'], geometry=waves_intersected['waves'], columns=['wave_dang'])
-print(waves)
+# print(waves)
 
-combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot(cmap=cmap)
+# combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot()
+combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True))
+print(combined)
 # coast.loc[len(coast), 'geometry'] = intersection
 
 # print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
@@ -137,8 +139,9 @@ coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[3]), (r
 coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[3]), (real_bbox[0], real_bbox[1])])
 
 
-# print(coast)
-# print(waves)
+# Creating colormap
+norm=plt.Normalize(0,100)
+cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
-combined.plot()
+combined.plot(legend=True, column='wave_dang', cmap=cmap, missing_kwds = {'color': 'black', 'label': 'Coast line'})
 plt.show()
