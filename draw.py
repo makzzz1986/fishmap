@@ -11,18 +11,21 @@ from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 def wave_line(start_point, angle, bbox):
     xmax = 0
     ymax = 0
-    if (0 < angle <= 90):
+    if (0 < angle < 90):
         xmax = bbox[2]
         ymax = bbox[3]
     elif (90 < angle <= 180):
         xmax = bbox[0]
         ymax = bbox[3]
-    elif (180 < angle <= 270):
+    elif (180 < angle < 270):
         xmax = bbox[0]
         ymax = bbox[1]
     elif (270 < angle <= 360):
         xmax = bbox[2]
         ymax = bbox[1]
+    elif (angle == 90) or (angle == 270):
+        # print([start_point, (start_point[0], bbox[3])])
+        return [start_point, (start_point[0], bbox[3])]
     # print(start_point, xmax, ymax)
     end_point_x = xmax
     end_point_y = ((xmax - start_point[0]) * sc.tandg(angle)) + start_point[1]
@@ -45,8 +48,11 @@ def wave_parted(wave, intersect, wave_dang=0):
         line_list.append(wave.coords[0])
         line_list.extend([[point.x, point.y] for point in intersect])
         # if it is odd, than it ends on the ground
-        if len(intersect) % 2 == 0:
-            line_list.append(wave.coords[-1]())
+        if len(intersect) == 0:
+            print('No intersect?')
+            return {'waves': [], 'wave_dang': []}
+        elif len(intersect) % 2 == 0:
+            line_list.append(wave.coords[-1])
         # pair dots to lines!
         for pair in range(0, len(line_list), 2):
             result_list.append(LineString([line_list[pair], line_list[pair+1]]))
@@ -76,7 +82,7 @@ for _, n, r in coast.itertuples():
 
 real_bbox = (xmin, ymin, xmax, ymax)
 
-wave_angle = 30
+wave_angle = 90
 wave_dang = 100
 precision = 0.0001
 
@@ -128,15 +134,15 @@ print(combined)
 # print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
 
 # add bboxes to plot
-coast.loc[len(coast), 'geometry'] = LineString([(bbox[0], bbox[1]), (bbox[2], bbox[1])])
-coast.loc[len(coast), 'geometry'] = LineString([(bbox[2], bbox[1]), (bbox[2], bbox[3])])
-coast.loc[len(coast), 'geometry'] = LineString([(bbox[2], bbox[3]), (bbox[0], bbox[3])])
-coast.loc[len(coast), 'geometry'] = LineString([(bbox[0], bbox[3]), (bbox[0], bbox[1])])
+# combined.loc[len(coast), 'geometry'] = LineString([(bbox[0], bbox[1]), (bbox[2], bbox[1])])
+# combined.loc[len(coast), 'geometry'] = LineString([(bbox[2], bbox[1]), (bbox[2], bbox[3])])
+# combined.loc[len(coast), 'geometry'] = LineString([(bbox[2], bbox[3]), (bbox[0], bbox[3])])
+# combined.loc[len(coast), 'geometry'] = LineString([(bbox[0], bbox[3]), (bbox[0], bbox[1])])
 
-coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[1]), (real_bbox[2], real_bbox[1])])
-coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[1]), (real_bbox[2], real_bbox[3])])
-coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[3]), (real_bbox[0], real_bbox[3])])
-coast.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[3]), (real_bbox[0], real_bbox[1])])
+# combined.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[1]), (real_bbox[2], real_bbox[1])])
+# combined.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[1]), (real_bbox[2], real_bbox[3])])
+# combined.loc[len(coast), 'geometry'] = LineString([(real_bbox[2], real_bbox[3]), (real_bbox[0], real_bbox[3])])
+# combined.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[3]), (real_bbox[0], real_bbox[1])])
 
 
 # Creating colormap
