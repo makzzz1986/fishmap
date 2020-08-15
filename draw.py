@@ -7,129 +7,184 @@ import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 
 
-# will be updated, works for the first quarter only 8()
-def wave_line(start_point, angle, bbox):
-    xmax = 0
-    ymax = 0
-    if (0 < angle < 90):
+class coast_part():
+    bbox = [] # xmin, ymin, xmax, ymax
+    bbox_dict = {}
+    real_bbox = [] # xmin, ymin, xmax, ymax
+    real_bbox_dict = {}
+    wave_spec = {
+        'angle': 0, 
+        'height': 0,
+        'period': 0,
+        'dang': 100
+    }
+    wind_spec = {
+        'angle': 0, 
+        'height': 0,
+        'period': 0,
+        'dang': 100
+    }
+    precision = 0
+    coastline_geo = None
+    waves_geo = None
+    ocean_geo = None
+    cmap = None
+
+
+    def __init__(self, file_path, bbox):
+        self.bbox = bbox
+        self.bbox_dict = self.bbox2dict(bbox)
+        self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
+        self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
+
+        # Getting the real bbox! It is much bigger than bbox
+        xmin = bbox[0]
         xmax = bbox[2]
+        ymin = bbox[1]
         ymax = bbox[3]
-    elif (90 < angle <= 180):
-        xmax = bbox[0]
-        ymax = bbox[3]
-    elif (180 < angle < 270):
-        xmax = bbox[0]
-        ymax = bbox[1]
-    elif (270 < angle <= 360):
-        xmax = bbox[2]
-        ymax = bbox[1]
-    elif (angle == 90) or (angle == 270):
-        # print([start_point, (start_point[0], bbox[3])])
-        return [start_point, (start_point[0], bbox[3])]
-    # print(start_point, xmax, ymax)
-    end_point_x = xmax
-    end_point_y = ((xmax - start_point[0]) * sc.tandg(angle)) + start_point[1]
-    if end_point_y > ymax:
-        # print('Too big!')
-        end_point_y = ymax
-        end_point_x = ((ymax - start_point[1]) * sc.cotdg(angle)) + start_point[0]
-    # print(start_point, (end_point_x, end_point_y))
-    return [start_point, (end_point_x, end_point_y)]
 
+        for _, n, r in self.coastline_geo.itertuples(): 
+            for pair in list(r.coords):
+                if pair[0] > xmax:
+                    xmax = pair[0]
+                if pair[0] < xmin:
+                    xmin = pair[0]
+                if pair[1] > ymax:
+                    ymax = pair[1]
+                if pair[1] < ymin:
+                    ymin = pair[1]
 
-def wave_parted(wave, intersect, wave_dang=0):
-    # drawing parted line
-    if intersect.type == 'Point':
-        return {'waves': [LineString([wave.coords[0], intersect])], 'wave_dang': [wave_dang]}
-    if intersect.type == 'MultiPoint':
-        line_list = []
-        # multilinestrings = []
-        result_list = [] # colored lines
-        line_list.append(wave.coords[0])
-        line_list.extend([[point.x, point.y] for point in intersect])
-        # if it is odd, than it ends on the ground
-        if len(intersect) == 0:
-            print('No intersect?')
-            return {'waves': [], 'wave_dang': []}
-        elif len(intersect) % 2 == 0:
-            line_list.append(wave.coords[-1])
-        # pair dots to lines!
-        for pair in range(0, len(line_list), 2):
-            result_list.append(LineString([line_list[pair], line_list[pair+1]]))
-        # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
-        # because they are after ground.
-        return {'waves': result_list, 'wave_dang': [0 if x>0 else wave_dang for x in range(len(result_list))]} 
+        self.real_bbox = (xmin, ymin, xmax, ymax)
+        self.real_bbox_dict = self.bbox2dict(self.real_bbox)
 
-bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
-coast = geopandas.read_file('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox=bbox)
+    def bbox2dict(self, bbox):
+        return {
+            'xmin': bbox[0],
+            'ymin': bbox[1],
+            'xmax': bbox[2],
+            'ymax': bbox[3],
+        }
 
-xmin = bbox[0]
-xmax = bbox[2]
-ymin = bbox[1]
-ymax = bbox[3]
+    # will be updated, works for the first quarter only 8()
+    def wave_line(self, start_point, wave, bbox):
+        xmax = 0
+        ymax = 0
+        if (0 < wave['angle'] < 90):
+            xmax = bbox['xmax'] # remake them to bbox_dict
+            ymax = bbox['ymax']
+        elif (90 < wave['angle'] <= 180):
+            xmax = bbox['xmin']
+            ymax = bbox['ymax']
+        elif (180 < wave['angle'] < 270):
+            xmax = bbox['xmin']
+            ymax = bbox['ymin']
+        elif (270 < wave['angle'] <= 360):
+            xmax = bbox['xmax']
+            ymax = bbox['ymin']
+        elif (wave['angle'] == 90) or (wave['angle'] == 270):
+            # print([start_point, (start_point[0], bbox['ymax'])])
+            return [start_point, (start_point[0], bbox['ymax'])]
+        # print(start_point, xmax, ymax)
+        end_point_x = xmax
+        end_point_y = ((xmax - start_point[0]) * sc.tandg(wave['angle'])) + start_point[1]
+        if end_point_y > ymax:
+            # print('Too big!')
+            end_point_y = ymax
+            end_point_x = ((ymax - start_point[1]) * sc.cotdg(wave['angle'])) + start_point[0]
+        # print(start_point, (end_point_x, end_point_y), wave, bbox)
+        return [start_point, (end_point_x, end_point_y)]
 
-# Getting the real bbox! It is much bigger than bbox
-for _, n, r in coast.itertuples(): 
-    for pair in list(r.coords):
-        if pair[0] > xmax:
-            xmax = pair[0]
-        if pair[0] < xmin:
-            xmin = pair[0]
-        if pair[1] > ymax:
-            ymax = pair[1]
-        if pair[1] < ymin:
-            ymin = pair[1]
+    def wave_parted(self, wave, intersect):
+        # drawing parted line
+        if intersect.type == 'Point':
+            return {'waves': [LineString([wave.coords[0], intersect])], 'wave_dang': [self.wave_spec['dang']]}
+        if intersect.type == 'MultiPoint':
+            line_list = []
+            # multilinestrings = []
+            result_list = [] # colored lines
+            line_list.append(wave.coords[0])
+            line_list.extend([[point.x, point.y] for point in intersect])
+            # if it is odd, than it ends on the ground
+            if len(intersect) == 0:
+                print('No intersect?')
+                return {'waves': [], 'wave_dang': []}
+            elif len(intersect) % 2 == 0:
+                line_list.append(wave.coords[-1])
+            # pair dots to lines!
+            for pair in range(0, len(line_list), 2):
+                result_list.append(LineString([line_list[pair], line_list[pair+1]]))
+            # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
+            # because they are after ground.
+            return {'waves': result_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(result_list))]} 
 
-real_bbox = (xmin, ymin, xmax, ymax)
+    def waves_set(self, angle=45, height=0, period=0):
+        # Will be repaced by API call
+        self.wave_spec = {
+            'angle': angle, 
+            'height': height,
+            'period': period
+        }
+        # dangerousness should be calculated
+        self.wave_spec['dang'] = 80
 
-wave_angle = 90
-wave_dang = 100
-precision = 0.0001
+    def wind_set(self, angle=45, height=0, period=0):
+        # Will be repaced by API call
+        self.wind_spec = {
+            'angle': angle, 
+            'height': height,
+            'period': period
+        }
+        # dangerousness should be calculated
+        self.wind_spec['dang'] = 80
 
-# draw wave lines
-waves = geopandas.GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
+    # draw wave lines
+    def wave_draw(self):
+        self.waves_geo = geopandas.GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
 
-xstep = xmin
-ystep = ymin
-while True:
-    waves.loc[len(waves), 'geometry'] = LineString(wave_line((xstep, ymin), wave_angle, real_bbox))
-    xstep += precision
-    if xstep >= xmax:
-        break
-while True:
-    waves.loc[len(waves), 'geometry'] = LineString(wave_line((xmin, ystep), wave_angle, real_bbox))
-    ystep += precision
-    if ystep >= ymax:
-        break
+        xstep = self.real_bbox_dict['xmin']
+        ystep = self.real_bbox_dict['ymin']
+        while True:
+            self.waves_geo.loc[len(self.waves_geo), 'geometry'] = LineString(self.wave_line((xstep, self.real_bbox_dict['ymin']), self.wave_spec, self.real_bbox_dict))
+            xstep += self.precision
+            if xstep >= self.real_bbox_dict['xmax']:
+                break
+        while True:
+            self.waves_geo.loc[len(self.waves_geo), 'geometry'] = LineString(self.wave_line((self.real_bbox_dict['xmin'], ystep), self.wave_spec, self.real_bbox_dict))
+            ystep += self.precision
+            if ystep >= self.real_bbox_dict['ymax']:
+                break
+        return self.waves_geo
 
+    def ocean_draw(self):
+        waves = self.wave_draw()
+        # print('waves')
+        # print(waves)
+        # points of intersection
+        # intersection_list = []
+        waves_intersected = {'waves': [], 'wave_dang': []}
+        for _, _, coastline in self.coastline_geo.itertuples():
+            for _, wave in waves.itertuples():
+                intersect = coastline.intersection(wave)
+                # print(coastline)
+                # print(wave)
+                # break
+                # removing not intersected:
+                if not intersect.is_empty:
+                    # intersection_list.append(intersect)
+                    # drawing parted line
+                    wave_parts = self.wave_parted(wave, intersect)
+                    waves_intersected['waves'].extend(wave_parts['waves'])
+                    waves_intersected['wave_dang'].extend(wave_parts['wave_dang'])
+            
+        # intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
+        waves = geopandas.GeoDataFrame(waves_intersected['wave_dang'], geometry=waves_intersected['waves'], columns=['wave_dang'])
 
-# points of intersection
-intersection_list = []
-waves_intersected = {'waves': [], 'wave_dang': []}
-for _, fid, coastline in coast.itertuples():
-    for _, wave in waves.itertuples():
-        intersect = coastline.intersection(wave)
-        # removing not intersected:
-        if not intersect.is_empty:
-            intersection_list.append(intersect)
-            # drawing parted line
-            wave_parts = wave_parted(wave, intersect, wave_dang)
-            # print(wave_parts, len(wave_parts['waves']), len(wave_parts['wave_dang']))
-            waves_intersected['waves'].extend(wave_parts['waves'])
-            waves_intersected['wave_dang'].extend(wave_parts['wave_dang'])
-      
-# print(waves_intersected)
-# print(len(waves_intersected['waves']))
-# print(len(waves_intersected['wave_dang']))
+        # combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot()
+        combined = geopandas.GeoDataFrame(pandas.concat([self.coastline_geo, waves], ignore_index=True))
+        # print(combined)
 
-intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)
-waves = geopandas.GeoDataFrame(waves_intersected['wave_dang'], geometry=waves_intersected['waves'], columns=['wave_dang'])
-# print(waves)
-
-# combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot()
-combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True))
-print(combined)
-# coast.loc[len(coast), 'geometry'] = intersection
+        return combined
+        # coast.loc[len(coast), 'geometry'] = intersection
 
 # print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
 
@@ -145,9 +200,20 @@ print(combined)
 # combined.loc[len(coast), 'geometry'] = LineString([(real_bbox[0], real_bbox[3]), (real_bbox[0], real_bbox[1])])
 
 
-# Creating colormap
-norm=plt.Normalize(0,100)
-cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
+    def ocean_plot(self, precision=0.0001):
+        self.precision = precision
+        combined = self.ocean_draw()
+        self.ocean_geo = combined
+        # Creating colormap
+        # norm=plt.Normalize(0,100)
 
-combined.plot(legend=True, column='wave_dang', cmap=cmap, missing_kwds = {'color': 'black', 'label': 'Coast line'})
-plt.show()
+        combined.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
+        plt.show()
+
+
+
+bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
+cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
+cascais.waves_set(angle=90)
+cascais.wind_set()
+cascais.ocean_plot()
