@@ -37,7 +37,6 @@ class coast_part():
         self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
-
         # Getting the real bbox! It is much bigger than bbox
         xmin = bbox[0]
         xmax = bbox[2]
@@ -67,32 +66,32 @@ class coast_part():
         }
 
     # will be updated, works for the first quarter only 8()
-    def wave_line(self, start_point):
+    def wave_line(self, start_point, wave, bbox):
         xmax = 0
         ymax = 0
-        if (0 < self.wind_spec['angle'] < 90):
-            xmax = self.bbox[2] # remake them to bbox_dict
-            ymax = self.bbox[3]
-        elif (90 < self.wind_spec['angle'] <= 180):
-            xmax = self.bbox[0]
-            ymax = self.bbox[3]
-        elif (180 < self.wind_spec['angle'] < 270):
-            xmax = self.bbox[0]
-            ymax = self.bbox[1]
-        elif (270 < self.wind_spec['angle'] <= 360):
-            xmax = self.bbox[2]
-            ymax = self.bbox[1]
-        elif (self.wind_spec['angle'] == 90) or (self.wind_spec['angle'] == 270):
-            # print([start_point, (start_point[0], self.bbox[3])])
-            return [start_point, (start_point[0], self.bbox[3])]
+        if (0 < wave['angle'] < 90):
+            xmax = bbox['xmax'] # remake them to bbox_dict
+            ymax = bbox['ymax']
+        elif (90 < wave['angle'] <= 180):
+            xmax = bbox['xmin']
+            ymax = bbox['ymax']
+        elif (180 < wave['angle'] < 270):
+            xmax = bbox['xmin']
+            ymax = bbox['ymin']
+        elif (270 < wave['angle'] <= 360):
+            xmax = bbox['xmax']
+            ymax = bbox['ymin']
+        elif (wave['angle'] == 90) or (wave['angle'] == 270):
+            # print([start_point, (start_point[0], bbox['ymax'])])
+            return [start_point, (start_point[0], bbox['ymax'])]
         # print(start_point, xmax, ymax)
         end_point_x = xmax
-        end_point_y = ((xmax - start_point[0]) * sc.tandg(self.wind_spec['angle'])) + start_point[1]
+        end_point_y = ((xmax - start_point[0]) * sc.tandg(wave['angle'])) + start_point[1]
         if end_point_y > ymax:
             # print('Too big!')
             end_point_y = ymax
-            end_point_x = ((ymax - start_point[1]) * sc.cotdg(self.wind_spec['angle'])) + start_point[0]
-        # print(start_point, (end_point_x, end_point_y))
+            end_point_x = ((ymax - start_point[1]) * sc.cotdg(wave['angle'])) + start_point[0]
+        # print(start_point, (end_point_x, end_point_y), wave, bbox)
         return [start_point, (end_point_x, end_point_y)]
 
     def wave_parted(self, wave, intersect):
@@ -145,12 +144,12 @@ class coast_part():
         xstep = self.real_bbox_dict['xmin']
         ystep = self.real_bbox_dict['ymin']
         while True:
-            self.waves_geo.loc[len(self.waves_geo), 'geometry'] = LineString(self.wave_line((xstep, self.real_bbox_dict['ymin'])))
+            self.waves_geo.loc[len(self.waves_geo), 'geometry'] = LineString(self.wave_line((xstep, self.real_bbox_dict['ymin']), self.wave_spec, self.real_bbox_dict))
             xstep += self.precision
             if xstep >= self.real_bbox_dict['xmax']:
                 break
         while True:
-            self.waves_geo.loc[len(self.waves_geo), 'geometry'] = LineString(self.wave_line((self.real_bbox_dict['xmin'], ystep)))
+            self.waves_geo.loc[len(self.waves_geo), 'geometry'] = LineString(self.wave_line((self.real_bbox_dict['xmin'], ystep), self.wave_spec, self.real_bbox_dict))
             ystep += self.precision
             if ystep >= self.real_bbox_dict['ymax']:
                 break
@@ -158,31 +157,37 @@ class coast_part():
 
     def ocean_draw(self):
         waves = self.wave_draw()
-
+        # print('waves')
+        # print(waves)
         # points of intersection
         intersection_list = []
         waves_intersected = {'waves': [], 'wave_dang': []}
-        for _, fid, coastline in self.coastline_geo.itertuples():
+        for _, _, coastline in self.coastline_geo.itertuples():
             for _, wave in waves.itertuples():
                 intersect = coastline.intersection(wave)
+                # print(coastline)
+                print(wave)
+                break
                 # removing not intersected:
                 if not intersect.is_empty:
                     intersection_list.append(intersect)
                     # drawing parted line
                     wave_parts = self.wave_parted(wave, intersect)
+                    print('WAVE PARTS')
+                    print(wave_parts)
                     waves_intersected['waves'].extend(wave_parts['waves'])
                     waves_intersected['wave_dang'].extend(wave_parts['wave_dang'])
             
         # intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
         waves = geopandas.GeoDataFrame(waves_intersected['wave_dang'], geometry=waves_intersected['waves'], columns=['wave_dang'])
-        # print(waves)
+        print('waves')
+        print(waves)
 
         # combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot()
         combined = geopandas.GeoDataFrame(pandas.concat([self.coastline_geo, waves], ignore_index=True))
-
-        self.ocean_geo = combined
-        return self.ocean_geo
         # print(combined)
+
+        return self.ocean_geo
         # coast.loc[len(coast), 'geometry'] = intersection
 
 # print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
@@ -202,9 +207,11 @@ class coast_part():
     def ocean_plot(self, precision=0.0001):
         self.precision = precision
         combined = self.ocean_draw()
+        self.ocean_geo = combined
         # Creating colormap
         norm=plt.Normalize(0,100)
 
+        print(combined)
         combined.plot(legend=True, column='wave_dang', cmap=self.cmap, missing_kwds = {'color': 'black', 'label': 'Coast line'})
         plt.show()
 
