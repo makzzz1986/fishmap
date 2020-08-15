@@ -160,34 +160,30 @@ class coast_part():
         # print('waves')
         # print(waves)
         # points of intersection
-        intersection_list = []
+        # intersection_list = []
         waves_intersected = {'waves': [], 'wave_dang': []}
         for _, _, coastline in self.coastline_geo.itertuples():
             for _, wave in waves.itertuples():
                 intersect = coastline.intersection(wave)
                 # print(coastline)
-                print(wave)
-                break
+                # print(wave)
+                # break
                 # removing not intersected:
                 if not intersect.is_empty:
-                    intersection_list.append(intersect)
+                    # intersection_list.append(intersect)
                     # drawing parted line
                     wave_parts = self.wave_parted(wave, intersect)
-                    print('WAVE PARTS')
-                    print(wave_parts)
                     waves_intersected['waves'].extend(wave_parts['waves'])
                     waves_intersected['wave_dang'].extend(wave_parts['wave_dang'])
             
         # intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
         waves = geopandas.GeoDataFrame(waves_intersected['wave_dang'], geometry=waves_intersected['waves'], columns=['wave_dang'])
-        print('waves')
-        print(waves)
 
         # combined = geopandas.GeoDataFrame(pandas.concat([coast, waves], ignore_index=True)).plot()
         combined = geopandas.GeoDataFrame(pandas.concat([self.coastline_geo, waves], ignore_index=True))
         # print(combined)
 
-        return self.ocean_geo
+        return combined
         # coast.loc[len(coast), 'geometry'] = intersection
 
 # print('bbox', bbox, 'real_bbox: ', (xmin, ymin), (xmax, ymax))
@@ -209,16 +205,15 @@ class coast_part():
         combined = self.ocean_draw()
         self.ocean_geo = combined
         # Creating colormap
-        norm=plt.Normalize(0,100)
+        # norm=plt.Normalize(0,100)
 
-        print(combined)
-        combined.plot(legend=True, column='wave_dang', cmap=self.cmap, missing_kwds = {'color': 'black', 'label': 'Coast line'})
+        combined.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
         plt.show()
 
 
 
 bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
-cascais.waves_set()
+cascais.waves_set(angle=90)
 cascais.wind_set()
 cascais.ocean_plot()
