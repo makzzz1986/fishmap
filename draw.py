@@ -209,6 +209,12 @@ class coast_part():
         self.ocean_geo = self.combination([self.coastline_geo, intersection, self.real_bbox_geo, self.bbox_geo])
 
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
+        plt.annotate(\
+            text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision), \
+            xy=(self.real_bbox_dict['xmin'], self.real_bbox_dict['ymax']),\
+            verticalalignment='top'\
+        )
+        plt.title('Waves and the coastline intersection')
         plt.show()
 
 
