@@ -11,9 +11,9 @@ class coast_part():
     bbox = [] # xmin, ymin, xmax, ymax
     bbox_dict = {}
     bbox_geo = None
-    real_bbox = [] # xmin, ymin, xmax, ymax
-    real_bbox_dict = {}
-    real_bbox_geo = None
+    bbox_real = [] # xmin, ymin, xmax, ymax
+    bbox_real_dict = {}
+    bbox_real_geo = None
 
     wave_spec = {
         'angle': 0, 
@@ -57,26 +57,26 @@ class coast_part():
                 if pair[1] < ymin:
                     ymin = pair[1]
 
-        self.real_bbox = (xmin, ymin, xmax, ymax)
-        self.real_bbox_dict = self.bbox2dict(self.real_bbox)
+        self.bbox_real = (xmin, ymin, xmax, ymax)
+        self.bbox_real_dict = self.bbox2dict(self.bbox_real)
 
         # bboxes frames
-        bbox_multiline = MultiLineString([\
-            LineString([(self.bbox_dict['xmin'], self.bbox_dict['ymin']), (self.bbox_dict['xmax'], self.bbox_dict['ymin'])]),\
-            LineString([(self.bbox_dict['xmax'], self.bbox_dict['ymin']), (self.bbox_dict['xmax'], self.bbox_dict['ymax'])]),\
-            LineString([(self.bbox_dict['xmax'], self.bbox_dict['ymax']), (self.bbox_dict['xmin'], self.bbox_dict['ymax'])]),\
-            LineString([(self.bbox_dict['xmin'], self.bbox_dict['ymax']), (self.bbox_dict['xmin'], self.bbox_dict['ymin'])])\
-        ])
-        self.bbox_geo = geopandas.GeoDataFrame(bbox_multiline)
+        self.bbox_geo = geopandas.GeoDataFrame([], columns=['geometry', 'name'], crs="EPSG:4326")
+        self.bbox_geo.loc[0] = {'name':'bbox_frame', 'geometry': MultiLineString([\
+            ((self.bbox_dict['xmin'], self.bbox_dict['ymin']), (self.bbox_dict['xmax'], self.bbox_dict['ymin'])),\
+            ((self.bbox_dict['xmax'], self.bbox_dict['ymin']), (self.bbox_dict['xmax'], self.bbox_dict['ymax'])),\
+            ((self.bbox_dict['xmax'], self.bbox_dict['ymax']), (self.bbox_dict['xmin'], self.bbox_dict['ymax'])),\
+            ((self.bbox_dict['xmin'], self.bbox_dict['ymax']), (self.bbox_dict['xmin'], self.bbox_dict['ymin']))\
+        ])}
 
-        real_bbox_multiline = MultiLineString([\
-            LineString([(self.real_bbox_dict['xmin'], self.real_bbox_dict['ymin']), (self.real_bbox_dict['xmax'], self.real_bbox_dict['ymin'])]),\
-            LineString([(self.real_bbox_dict['xmax'], self.real_bbox_dict['ymin']), (self.real_bbox_dict['xmax'], self.real_bbox_dict['ymax'])]),\
-            LineString([(self.real_bbox_dict['xmax'], self.real_bbox_dict['ymax']), (self.real_bbox_dict['xmin'], self.real_bbox_dict['ymax'])]),\
-            LineString([(self.real_bbox_dict['xmin'], self.real_bbox_dict['ymax']), (self.real_bbox_dict['xmin'], self.real_bbox_dict['ymin'])])\
-        ])
-        self.real_bbox_geo = geopandas.GeoDataFrame(real_bbox_multiline)
-
+        self.bbox_real_geo = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
+        self.bbox_real_geo.loc[0] = {'name':'bbox_real_frame', 'geometry': MultiLineString([\
+            ((self.bbox_real_dict['xmin'], self.bbox_real_dict['ymin']), (self.bbox_real_dict['xmax'], self.bbox_real_dict['ymin'])),\
+            ((self.bbox_real_dict['xmax'], self.bbox_real_dict['ymin']), (self.bbox_real_dict['xmax'], self.bbox_real_dict['ymax'])),\
+            ((self.bbox_real_dict['xmax'], self.bbox_real_dict['ymax']), (self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax'])),\
+            ((self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']), (self.bbox_real_dict['xmin'], self.bbox_real_dict['ymin']))\
+        ])}
+        
 
     def bbox2dict(self, bbox):
         return {
@@ -204,14 +204,14 @@ class coast_part():
 
     def ocean_plot(self, precision=0.0001):
         self.precision = precision
-        self.waves_geo = self.wave_draw(self.real_bbox_dict, self.wave_spec, self.precision)
+        self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
         intersection = self.intersection(self.coastline_geo, self.waves_geo)
-        self.ocean_geo = self.combination([self.coastline_geo, intersection, self.real_bbox_geo, self.bbox_geo])
-
+        self.ocean_geo = self.combination([self.coastline_geo, intersection, self.bbox_real_geo, self.bbox_geo])
+        # print(self.ocean_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
         plt.annotate(\
             text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision), \
-            xy=(self.real_bbox_dict['xmin'], self.real_bbox_dict['ymax']),\
+            xy=(self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']),\
             verticalalignment='top'\
         )
         plt.title('Waves and the coastline intersection')
