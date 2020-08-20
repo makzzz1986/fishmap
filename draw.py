@@ -1,8 +1,9 @@
 import geopandas
+import overpy
 import pandas
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
-import scipy.special as sc
+from scipy.special import tandg, cotdg
 import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 
@@ -28,6 +29,7 @@ class coast_part():
         'dang': 100
     }
     precision = 0
+    geo_all = []
     coastline_geo = None
     waves_geo = None
     ocean_geo = None
@@ -38,6 +40,7 @@ class coast_part():
         self.bbox = bbox
         self.bbox_dict = self.bbox2dict(bbox)
         self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
+        self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
         # Getting the real bbox! It is much bigger than bbox
@@ -107,11 +110,11 @@ class coast_part():
             return [start_point, (start_point[0], bbox['ymax'])]
         # print(start_point, xmax, ymax)
         end_point_x = xmax
-        end_point_y = ((xmax - start_point[0]) * sc.tandg(wave['angle'])) + start_point[1]
+        end_point_y = ((xmax - start_point[0]) * tandg(wave['angle'])) + start_point[1]
         if end_point_y > ymax:
             # print('Too big!')
             end_point_y = ymax
-            end_point_x = ((ymax - start_point[1]) * sc.cotdg(wave['angle'])) + start_point[0]
+            end_point_x = ((ymax - start_point[1]) * cotdg(wave['angle'])) + start_point[0]
         # print(start_point, (end_point_x, end_point_y), wave, bbox)
         return [start_point, (end_point_x, end_point_y)]
 
@@ -199,14 +202,53 @@ class coast_part():
         return intersection
 
     def combination(self, geos):
+        print(geos)
         return geopandas.GeoDataFrame(pandas.concat(geos, ignore_index=True))
 
+    # Did I miss something? I have to convert coordinates to lon and lat
+    def convert_bbox(self, bbox):
+        changed_order = [str(bbox[1]), str(bbox[0]), str(bbox[3]), str(bbox[2])]
+        return ','.join(changed_order)
+
+    def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
+        api = overpy.Overpass()
+        converted_bbox = self.convert_bbox(bbox)
+        print(f'''
+(
+  node
+  ["place"~"{place_regexp}"]
+    ({converted_bbox});
+)->._;
+(._;>;);
+out;''')
+        result = api.query(f'''
+(
+  node
+  ["place"~"{place_regexp}"]
+    ({converted_bbox});
+)->._;
+(._;>;);
+out;''')
+        towns_points_coord = []
+        towns_points_names = []
+        for node in result.nodes:
+            # print(node.tags['name'], node.lat, node.lon)
+            towns_points_names.append(node.tags['name'])
+            towns_points_coord.append(Point(node.lon,node.lat))
+        return geopandas.GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
 
     def ocean_plot(self, precision=0.0001):
         self.precision = precision
         self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
-        intersection = self.intersection(self.coastline_geo, self.waves_geo)
-        self.ocean_geo = self.combination([self.coastline_geo, intersection, self.bbox_real_geo, self.bbox_geo])
+        
+        waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
+        self.geo_all.append(waves_parted)
+        self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
+
+        towns = self.set_towns(self.bbox_real)
+        self.geo_all.append(towns)
+
+        self.ocean_geo = self.combination(self.geo_all)
         # print(self.coastline_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
         print(self.bbox_real)
@@ -215,13 +257,18 @@ class coast_part():
             xy=(self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']),\
             verticalalignment='top'\
         )
+        # city names
+        for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
+            plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords="offset points")
+
         plt.title('Waves and the coastline intersection')
         plt.show()
 
 
 
-bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
+# bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
+bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
 cascais.waves_set(angle=50)
 cascais.wind_set()
-cascais.ocean_plot()
+cascais.ocean_plot(precision=0.001)
