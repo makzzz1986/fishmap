@@ -207,8 +207,9 @@ class coast_part():
         self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
         intersection = self.intersection(self.coastline_geo, self.waves_geo)
         self.ocean_geo = self.combination([self.coastline_geo, intersection, self.bbox_real_geo, self.bbox_geo])
-        # print(self.ocean_geo)
+        # print(self.coastline_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
+        print(self.bbox_real)
         plt.annotate(\
             text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision), \
             xy=(self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']),\
