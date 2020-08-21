@@ -123,25 +123,29 @@ class coast_part():
         if intersect.type == 'Point':
             return {'waves': [LineString([wave.coords[0], intersect])], 'wave_dang': [self.wave_spec['dang']]}
         if intersect.type == 'MultiPoint':
-            line_list = []
+            points_list = []
             # multilinestrings = []
-            result_list = [] # colored lines
-            line_list.append(wave.coords[0])
-            line_list.extend([[point.x, point.y] for point in intersect])
-            # if it is odd, than it ends on the ground
+            line_list = [] # list with lines
+            points_list.append(wave.coords[0])
+            points_list.extend([[point.x, point.y] for point in intersect])
+
             if len(intersect) == 0:
                 print('No intersect?')
                 return {'waves': [], 'wave_dang': []}
-            elif len(intersect) % 2 == 0:
-                line_list.append(wave.coords[-1])
+            # if it is odd, than it ends on the ground
+            if len(intersect) % 2 == 0:
+                print('Odd?')
+                for i in intersect:
+                    print(i)
+                points_list.append(wave.coords[-1])
             # pair dots to lines!
-            for pair in range(0, len(line_list), 2):
-                result_list.append(LineString([line_list[pair], line_list[pair+1]]))
+            for pair in range(0, len(points_list), 2):
+                line_list.append(LineString([points_list[pair], points_list[pair+1]]))
             # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
             # because they are after ground.
-            return {'waves': result_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(result_list))]} 
+            return {'waves': line_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(line_list))]} 
 
-    def waves_set(self, angle=45, height=0, period=0):
+    def set_waves(self, angle=45, height=0, period=0):
         # Will be repaced by API call
         self.wave_spec = {
             'angle': angle, 
@@ -151,7 +155,7 @@ class coast_part():
         # dangerousness should be calculated
         self.wave_spec['dang'] = 80
 
-    def wind_set(self, angle=45, height=0, period=0):
+    def set_wind(self, angle=45, height=0, period=0):
         # Will be repaced by API call
         self.wind_spec = {
             'angle': angle, 
@@ -202,7 +206,7 @@ class coast_part():
         return intersection
 
     def combination(self, geos):
-        print(geos)
+        # print(geos)
         return geopandas.GeoDataFrame(pandas.concat(geos, ignore_index=True))
 
     # Did I miss something? I have to convert coordinates to lon and lat
@@ -213,14 +217,14 @@ class coast_part():
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
         api = overpy.Overpass()
         converted_bbox = self.convert_bbox(bbox)
-        print(f'''
-(
-  node
-  ["place"~"{place_regexp}"]
-    ({converted_bbox});
-)->._;
-(._;>;);
-out;''')
+#         print(f'''
+# (
+#   node
+#   ["place"~"{place_regexp}"]
+#     ({converted_bbox});
+# )->._;
+# (._;>;);
+# out;''')
         result = api.query(f'''
 (
   node
@@ -245,21 +249,21 @@ out;''')
         self.geo_all.append(waves_parted)
         self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
 
-        towns = self.set_towns(self.bbox_real)
-        self.geo_all.append(towns)
+        # towns = self.set_towns(self.bbox_real)
+        # self.geo_all.append(towns)
 
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.coastline_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
-        print(self.bbox_real)
+        # print(self.bbox_real)
         plt.annotate(\
             text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision), \
             xy=(self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']),\
             verticalalignment='top'\
         )
         # city names
-        for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
-            plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords="offset points")
+        # for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
+            # plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords="offset points")
 
         plt.title('Waves and the coastline intersection')
         plt.show()
@@ -269,6 +273,6 @@ out;''')
 # bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
-cascais.waves_set(angle=50)
-cascais.wind_set()
+cascais.set_waves(angle=50)
+cascais.set_wind()
 cascais.ocean_plot(precision=0.001)
