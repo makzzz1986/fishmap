@@ -50,6 +50,7 @@ class coast_part():
         ymax = bbox[3]
 
         for _, n, r in self.coastline_geo.itertuples(): 
+            print(n)
             for pair in list(r.coords):
                 if pair[0] > xmax:
                     xmax = pair[0]
@@ -137,7 +138,9 @@ class coast_part():
                 print('Odd?')
                 for i in intersect:
                     print(i)
+                print(points_list)
                 points_list.append(wave.coords[-1])
+                print(points_list)
             # pair dots to lines!
             for pair in range(0, len(points_list), 2):
                 line_list.append(LineString([points_list[pair], points_list[pair+1]]))
@@ -189,16 +192,20 @@ class coast_part():
         # points of intersection
         # intersection_list = []
         intersected = {'waves': [], 'wave_dang': []}
-        for _, _, geo1_line in geo1.itertuples():
-            for _, geo2_line in geo2.itertuples():
+        for _, geo1_line in geo1.itertuples():
+            full_intersect_points = MultiPoint(())
+            for _, _, geo2_line in geo2.itertuples():
                 intersect = geo1_line.intersection(geo2_line)
                 # removing not intersected:
-                if not intersect.is_empty:
+                # if not intersect.is_empty:
                     # intersection_list.append(intersect)
                     # drawing parted line
-                    wave_parts = self.wave_parted(geo2_line, intersect)
-                    intersected['waves'].extend(wave_parts['waves'])
-                    intersected['wave_dang'].extend(wave_parts['wave_dang'])
+                full_intersect_points = full_intersect_points.union(intersect)
+            print(full_intersect_points)
+            if not full_intersect_points.is_empty:
+                wave_parts = self.wave_parted(geo1_line, full_intersect_points)
+                intersected['waves'].extend(wave_parts['waves'])
+                intersected['wave_dang'].extend(wave_parts['wave_dang'])
             
         # intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
         intersection = geopandas.GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
@@ -245,9 +252,10 @@ out;''')
         self.precision = precision
         self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
         
-        waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
+        # waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
+        waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
         self.geo_all.append(waves_parted)
-        self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
+        # self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
 
         # towns = self.set_towns(self.bbox_real)
         # self.geo_all.append(towns)
@@ -273,6 +281,6 @@ out;''')
 # bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
-cascais.set_waves(angle=50)
+cascais.set_waves(angle=40)
 cascais.set_wind()
 cascais.ocean_plot(precision=0.001)
