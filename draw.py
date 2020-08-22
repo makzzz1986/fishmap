@@ -186,24 +186,15 @@ class coast_part():
                 break
         return waves_geo
 
-    def intersection(self, geo1, geo2):
-        # print('waves')
-        # print(waves)
-        # points of intersection
-        # intersection_list = []
+    def intersection(self, waves, coastline):
         intersected = {'waves': [], 'wave_dang': []}
-        for _, geo1_line in geo1.itertuples():
-            full_intersect_points = MultiPoint(())
-            for _, _, geo2_line in geo2.itertuples():
-                intersect = geo1_line.intersection(geo2_line)
-                # removing not intersected:
-                # if not intersect.is_empty:
-                    # intersection_list.append(intersect)
-                    # drawing parted line
-                full_intersect_points = full_intersect_points.union(intersect)
-            print(full_intersect_points)
+        for _, wave_line in waves.itertuples(): # checking each line for intersection to every coastline part (it can be islands!)
+            full_intersect_points = MultiPoint(()) # all Points and MultiPoints
+            for _, _, coast_line in coastline.itertuples():
+                intersect = wave_line.intersection(coast_line)
+                full_intersect_points = full_intersect_points.union(intersect) # refresh variable with all Points, it is like list.extend 
             if not full_intersect_points.is_empty:
-                wave_parts = self.wave_parted(geo1_line, full_intersect_points)
+                wave_parts = self.wave_parted(wave_line, full_intersect_points)
                 intersected['waves'].extend(wave_parts['waves'])
                 intersected['wave_dang'].extend(wave_parts['wave_dang'])
             
