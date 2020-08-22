@@ -50,7 +50,7 @@ class coast_part():
         ymax = bbox[3]
 
         for _, n, r in self.coastline_geo.itertuples(): 
-            print(n)
+            print('FID of the object from shapefile:', n)
             for pair in list(r.coords):
                 if pair[0] > xmax:
                     xmax = pair[0]
@@ -239,17 +239,20 @@ out;''')
             towns_points_coord.append(Point(node.lon,node.lat))
         return geopandas.GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
 
-    def ocean_plot(self, precision=0.0001):
+    def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False):
         self.precision = precision
         self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
         
         # waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
         waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
         self.geo_all.append(waves_parted)
-        # self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
 
-        # towns = self.set_towns(self.bbox_real)
-        # self.geo_all.append(towns)
+        if show_bboxes is True:
+            self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
+
+        if show_towns is True:
+            towns = self.set_towns(self.bbox_real)
+            self.geo_all.append(towns)
 
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.coastline_geo)
@@ -260,9 +263,11 @@ out;''')
             xy=(self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']),\
             verticalalignment='top'\
         )
+
         # city names
-        # for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
-            # plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords="offset points")
+        if show_towns is True:
+            for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
+                plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords="offset points")
 
         plt.title('Waves and the coastline intersection')
         plt.show()
