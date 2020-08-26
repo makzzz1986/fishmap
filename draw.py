@@ -69,8 +69,8 @@ class coast_part():
             self.frame_fids[fid] = self.bbox2dict([xmin_frame, ymin_frame, xmax_frame, ymax_frame])
             if xmax_frame > xmax:
                 xmax = xmax_frame
-            if xmin_frame < xmin_frame:
-                xmin_frame = xmin_frame
+            if xmin_frame < xmin:
+                xmin = xmin_frame
             if ymax_frame > ymax:
                 ymax = ymax_frame
             if ymin_frame < ymin:
