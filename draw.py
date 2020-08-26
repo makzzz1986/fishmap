@@ -15,6 +15,9 @@ class coast_part():
     bbox_real = [] # xmin, ymin, xmax, ymax
     bbox_real_dict = {}
     bbox_real_geo = None
+    bbox_broadened = [] # xmin, ymin, xmax, ymax
+    bbox_broadened_dict = {}
+    bbox_broadened_geo = None
     frame_fids = {}
 
     wave_spec = {
@@ -79,6 +82,12 @@ class coast_part():
         self.bbox_real = (xmin, ymin, xmax, ymax)
         self.bbox_real_dict = self.bbox2dict(self.bbox_real)
         self.bbox_real_geo = self.frame_draw(self.bbox_real_dict, 'bbox_real_frame')
+
+        # try to enlarge the full frame or we won't have waves at the protrusive points
+        enlarging = 0.01
+        self.bbox_broadened = (xmin - enlarging, ymin - enlarging, xmax + enlarging, ymax + enlarging)
+        self.bbox_broadened_dict = self.bbox2dict(self.bbox_broadened)
+        self.bbox_broadened_geo = self.frame_draw(self.bbox_broadened_dict, 'bbox_broadened_frame')
         
 
     def frame_draw(self, bbox_dict, name):
@@ -146,12 +155,12 @@ class coast_part():
                 return {'waves': [], 'wave_dang': []}
             # if it is odd, than it ends on the ground
             if len(intersect) % 2 == 0:
-                print('Odd?')
-                for i in intersect:
-                    print(i)
-                print(points_list)
+                # print('Odd?')
+                # for i in intersect:
+                #     print(i)
+                # print(points_list)
                 points_list.append(wave.coords[-1])
-                print(points_list)
+                # print(points_list)
             # pair dots to lines!
             for pair in range(0, len(points_list), 2):
                 line_list.append(LineString([points_list[pair], points_list[pair+1]]))
@@ -260,7 +269,7 @@ out;''')
 
     def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False, show_frames=False):
         self.precision = precision
-        self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
+        self.waves_geo = self.wave_draw(self.bbox_broadened_dict, self.wave_spec, self.precision)
         
         # waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
         waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
@@ -278,7 +287,7 @@ out;''')
             self.geo_all.extend([self.frame_draw(self.frame_fids[frame], frame) for frame in self.frame_fids])
 
         self.ocean_geo = self.combination(self.geo_all)
-        print(self.coastline_geo)
+        # print(self.coastline_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
         # print(self.bbox_real)
         plt.annotate(\
