@@ -8,16 +8,56 @@ import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 
 
+class bbox_box():
+    xmin = 0
+    ymin = 0
+    xmax = 0
+    ymax = 0
+    tpl = () # xmin, ymin, xmax, ymax
+    dct = {}
+    geo = None
+    osm_coords = ''
+
+    def __init__(self, bbox, name=''):
+        self.tpl = bbox
+        self.xmin = bbox[0]
+        self.ymin = bbox[1]
+        self.xmax = bbox[2]
+        self.ymax = bbox[3]
+        self.dct = self.bbox2dict(self.tpl)
+        self.geo = self.frame_draw(self.dct, name)
+        # for OSM OVERPASS API we need change the order of lat, lan
+        move_coords = [\
+            str(self.ymin), \
+            str(self.xmin), \
+            str(self.ymax), \
+            str(self.xmax)  \
+        ]
+        self.osm_coords = ','.join(move_coords)
+
+    def bbox2dict(self, bbox):
+        return {
+            'xmin': bbox[0],
+            'ymin': bbox[1],
+            'xmax': bbox[2],
+            'ymax': bbox[3],
+        }
+
+    def frame_draw(self, bbox_dict, name):
+        temp_geodataframe = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
+        temp_geodataframe.loc[0] = {'name': name, 'geometry': MultiLineString([\
+            ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),\
+            ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),\
+            ((bbox_dict['xmax'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymax'])),\
+            ((bbox_dict['xmin'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymin']))\
+        ])}
+        return temp_geodataframe
+        
+
 class coast_part():
-    bbox = [] # xmin, ymin, xmax, ymax
-    bbox_dict = {}
-    bbox_geo = None
-    bbox_real = [] # xmin, ymin, xmax, ymax
-    bbox_real_dict = {}
-    bbox_real_geo = None
-    bbox_broadened = [] # xmin, ymin, xmax, ymax
-    bbox_broadened_dict = {}
-    bbox_broadened_geo = None
+    bbox = None
+    bbox_real = None
+    bbox_broadened = None
     frame_fids = {}
 
     wave_spec = {
@@ -41,23 +81,21 @@ class coast_part():
 
 
     def __init__(self, file_path, bbox):
-        self.bbox = bbox
-        self.bbox_dict = self.bbox2dict(bbox)
-        self.bbox_geo = self.frame_draw(self.bbox_dict, 'bbox_frame')
+        self.bbox = bbox_box(bbox, 'source_bbox')
         self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
         self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
         # Getting the real bbox! It is much bigger than bbox
-        xmin = bbox[2]
-        xmax = bbox[0]
-        ymin = bbox[3]
-        ymax = bbox[1]
+        xmin = self.bbox.xmax
+        xmax = self.bbox.xmin
+        ymin = self.bbox.ymax
+        ymax = self.bbox.ymin
         for _, fid, r in self.coastline_geo.itertuples():
-            xmin_frame = bbox[2]
-            xmax_frame = bbox[0]
-            ymin_frame = bbox[3]
-            ymax_frame = bbox[1]
+            xmin_frame = self.bbox.xmax
+            xmax_frame = self.bbox.xmin
+            ymin_frame = self.bbox.ymax
+            ymax_frame = self.bbox.ymin
             print('FID of the object from shapefile:', fid)
             for pair in list(r.coords):
                 if pair[0] > xmax_frame:
@@ -68,7 +106,7 @@ class coast_part():
                     ymax_frame = pair[1]
                 if pair[1] < ymin_frame:
                     ymin_frame = pair[1]
-            self.frame_fids[fid] = self.bbox2dict([xmin_frame, ymin_frame, xmax_frame, ymax_frame])
+            self.frame_fids[fid] = bbox_box((xmin_frame, ymin_frame, xmax_frame, ymax_frame), fid)
             # update real bbox maximums and minimums
             if xmax_frame > xmax:
                 xmax = xmax_frame
@@ -79,55 +117,28 @@ class coast_part():
             if ymin_frame < ymin:
                 ymin = ymin_frame
 
-        self.bbox_real = (xmin, ymin, xmax, ymax)
-        self.bbox_real_dict = self.bbox2dict(self.bbox_real)
-        self.bbox_real_geo = self.frame_draw(self.bbox_real_dict, 'bbox_real_frame')
+        self.bbox_real = bbox_box((xmin, ymin, xmax, ymax), 'bbox_real')
 
-        # try to enlarge the full frame or we won't have waves at the protrusive points
-        enlarging = 0.01
-        self.bbox_broadened = (xmin - enlarging, ymin - enlarging, xmax + enlarging, ymax + enlarging)
-        self.bbox_broadened_dict = self.bbox2dict(self.bbox_broadened)
-        self.bbox_broadened_geo = self.frame_draw(self.bbox_broadened_dict, 'bbox_broadened_frame')
-        
-
-    def frame_draw(self, bbox_dict, name):
-        temp_geodataframe = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
-        temp_geodataframe.loc[0] = {'name': name, 'geometry': MultiLineString([\
-            ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),\
-            ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),\
-            ((bbox_dict['xmax'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymax'])),\
-            ((bbox_dict['xmin'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymin']))\
-        ])}
-        return temp_geodataframe
-
-
-    def bbox2dict(self, bbox):
-        return {
-            'xmin': bbox[0],
-            'ymin': bbox[1],
-            'xmax': bbox[2],
-            'ymax': bbox[3],
-        }
 
     # will be updated, works for the first quarter only 8()
     def wave_line(self, start_point, wave, bbox):
         xmax = 0
         ymax = 0
         if (0 < wave['angle'] < 90):
-            xmax = bbox['xmax'] # remake them to bbox_dict
-            ymax = bbox['ymax']
+            xmax = bbox.xmax # remake them to bbox_dict
+            ymax = bbox.ymax
         elif (90 < wave['angle'] <= 180):
-            xmax = bbox['xmin']
-            ymax = bbox['ymax']
+            xmax = bbox.xmin
+            ymax = bbox.ymax
         elif (180 < wave['angle'] < 270):
-            xmax = bbox['xmin']
-            ymax = bbox['ymin']
+            xmax = bbox.xmin
+            ymax = bbox.ymin
         elif (270 < wave['angle'] <= 360):
-            xmax = bbox['xmax']
-            ymax = bbox['ymin']
+            xmax = bbox.xmax
+            ymax = bbox.ymin
         elif (wave['angle'] == 90) or (wave['angle'] == 270):
             # print([start_point, (start_point[0], bbox['ymax'])])
-            return [start_point, (start_point[0], bbox['ymax'])]
+            return [start_point, (start_point[0], bbox.ymax)]
         # print(start_point, xmax, ymax)
         end_point_x = xmax
         end_point_y = ((xmax - start_point[0]) * tandg(wave['angle'])) + start_point[1]
@@ -195,17 +206,17 @@ class coast_part():
     def wave_draw(self, bbox, wave_spec, precision):
         waves_geo = geopandas.GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
 
-        xstep = bbox['xmin']
-        ystep = bbox['ymin']
+        xstep = bbox.xmin
+        ystep = bbox.ymin
         while True:
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((xstep, bbox['ymin']), wave_spec, bbox))
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((xstep, bbox.ymin), wave_spec, bbox))
             xstep += precision
-            if xstep >= bbox['xmax']:
+            if xstep >= bbox.xmax:
                 break
         while True:
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((bbox['xmin'], ystep), wave_spec, bbox))
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((bbox.xmin, ystep), wave_spec, bbox))
             ystep += precision
-            if ystep >= bbox['ymax']:
+            if ystep >= bbox.ymax:
                 break
         return waves_geo
 
@@ -233,20 +244,13 @@ class coast_part():
         return geopandas.GeoDataFrame(pandas.concat(geos, ignore_index=True))
 
 
-    # Did I miss something? I have to convert coordinates to lon and lat
-    def convert_bbox(self, bbox):
-        changed_order = [str(bbox[1]), str(bbox[0]), str(bbox[3]), str(bbox[2])]
-        return ','.join(changed_order)
-
-
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
         api = overpy.Overpass()
-        converted_bbox = self.convert_bbox(bbox)
 #         print(f'''
 # (
 #   node
 #   ["place"~"{place_regexp}"]
-#     ({converted_bbox});
+#     ({bbox.osm_coords});
 # )->._;
 # (._;>;);
 # out;''')
@@ -254,7 +258,7 @@ class coast_part():
 (
   node
   ["place"~"{place_regexp}"]
-    ({converted_bbox});
+    ({bbox.osm_coords});
 )->._;
 (._;>;);
 out;''')
@@ -269,14 +273,29 @@ out;''')
 
     def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False, show_frames=False):
         self.precision = precision
-        self.waves_geo = self.wave_draw(self.bbox_broadened_dict, self.wave_spec, self.precision)
+
+        # enlarging the full frame or we won't have waves at the protrusive points
+        if (self.precision * 10) < 0.01:
+            enlarging = 0.01 
+        else: 
+            enlarging = self.precision * 10
+        self.bbox_broadened = bbox_box(
+            (self.bbox_real.xmin - enlarging,
+            self.bbox_real.ymin - enlarging, 
+            self.bbox_real.xmax + enlarging, 
+            self.bbox_real.ymax + enlarging),
+            'bbox_broadened'
+        )
+
+
+        self.waves_geo = self.wave_draw(self.bbox_broadened, self.wave_spec, self.precision)
         
         # waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
         waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
         self.geo_all.append(waves_parted)
 
         if show_bboxes is True:
-            self.geo_all.extend([self.bbox_real_geo, self.bbox_geo])
+            self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
 
         if show_towns is True:
             towns = self.set_towns(self.bbox_real)
@@ -284,7 +303,7 @@ out;''')
 
         if show_frames is True:
             # print([self.frame_draw(self.frame_fids[frame], frame) for frame in self.frame_fids])
-            self.geo_all.extend([self.frame_draw(self.frame_fids[frame], frame) for frame in self.frame_fids])
+            self.geo_all.extend([self.frame_fids[frame].geo for frame in self.frame_fids])
 
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.coastline_geo)
@@ -292,7 +311,7 @@ out;''')
         # print(self.bbox_real)
         plt.annotate(\
             text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision), \
-            xy=(self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']),\
+            xy=(self.bbox_real.xmin, self.bbox_real.ymax),\
             verticalalignment='top'\
         )
 
