@@ -40,22 +40,21 @@ class coast_part():
     def __init__(self, file_path, bbox):
         self.bbox = bbox
         self.bbox_dict = self.bbox2dict(bbox)
-        self.bbox_geo = self.frame_draw(self.bbox_dict)
+        self.bbox_geo = self.frame_draw(self.bbox_dict, 'bbox_frame')
         self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
         self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
         # Getting the real bbox! It is much bigger than bbox
-        xmin = bbox[0]
-        xmax = bbox[2]
-        ymin = bbox[1]
-        ymax = bbox[3]
-
+        xmin = bbox[2]
+        xmax = bbox[0]
+        ymin = bbox[3]
+        ymax = bbox[1]
         for _, fid, r in self.coastline_geo.itertuples():
-            xmin_frame = xmin
-            xmax_frame = xmax
-            ymin_frame = ymin
-            ymax_frame = ymax
+            xmin_frame = bbox[2]
+            xmax_frame = bbox[0]
+            ymin_frame = bbox[3]
+            ymax_frame = bbox[1]
             print('FID of the object from shapefile:', fid)
             for pair in list(r.coords):
                 if pair[0] > xmax_frame:
@@ -67,6 +66,7 @@ class coast_part():
                 if pair[1] < ymin_frame:
                     ymin_frame = pair[1]
             self.frame_fids[fid] = self.bbox2dict([xmin_frame, ymin_frame, xmax_frame, ymax_frame])
+            # update real bbox maximums and minimums
             if xmax_frame > xmax:
                 xmax = xmax_frame
             if xmin_frame < xmin:
@@ -78,12 +78,12 @@ class coast_part():
 
         self.bbox_real = (xmin, ymin, xmax, ymax)
         self.bbox_real_dict = self.bbox2dict(self.bbox_real)
-        self.bbox_real_geo = self.frame_draw(self.bbox_real_dict)
+        self.bbox_real_geo = self.frame_draw(self.bbox_real_dict, 'bbox_real_frame')
         
 
-    def frame_draw(self, bbox_dict):
+    def frame_draw(self, bbox_dict, name):
         temp_geodataframe = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
-        temp_geodataframe.loc[0] = {'name':'bbox_real_frame', 'geometry': MultiLineString([\
+        temp_geodataframe.loc[0] = {'name': name, 'geometry': MultiLineString([\
             ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),\
             ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),\
             ((bbox_dict['xmax'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymax'])),\
@@ -274,11 +274,11 @@ out;''')
             self.geo_all.append(towns)
 
         if show_frames is True:
-            print([self.frame_draw(self.frame_fids[frame]) for frame in self.frame_fids])
-            self.geo_all.extend([self.frame_draw(self.frame_fids[frame]) for frame in self.frame_fids])
+            # print([self.frame_draw(self.frame_fids[frame], frame) for frame in self.frame_fids])
+            self.geo_all.extend([self.frame_draw(self.frame_fids[frame], frame) for frame in self.frame_fids])
 
         self.ocean_geo = self.combination(self.geo_all)
-        # print(self.coastline_geo)
+        print(self.coastline_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
         # print(self.bbox_real)
         plt.annotate(\
@@ -302,4 +302,4 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
 cascais.set_waves(angle=40)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.001, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=0.001, show_towns=False, show_bboxes=False, show_frames=True)
