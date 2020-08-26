@@ -15,6 +15,7 @@ class coast_part():
     bbox_real = [] # xmin, ymin, xmax, ymax
     bbox_real_dict = {}
     bbox_real_geo = None
+    frame_fids = {}
 
     wave_spec = {
         'angle': 0, 
@@ -39,6 +40,7 @@ class coast_part():
     def __init__(self, file_path, bbox):
         self.bbox = bbox
         self.bbox_dict = self.bbox2dict(bbox)
+        self.bbox_geo = self.frame_draw(self.bbox_dict)
         self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
         self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
@@ -49,38 +51,46 @@ class coast_part():
         ymin = bbox[1]
         ymax = bbox[3]
 
-        for _, n, r in self.coastline_geo.itertuples(): 
-            print('FID of the object from shapefile:', n)
+        for _, fid, r in self.coastline_geo.itertuples():
+            xmin_frame = xmin
+            xmax_frame = xmax
+            ymin_frame = ymin
+            ymax_frame = ymax
+            print('FID of the object from shapefile:', fid)
             for pair in list(r.coords):
-                if pair[0] > xmax:
-                    xmax = pair[0]
-                if pair[0] < xmin:
-                    xmin = pair[0]
-                if pair[1] > ymax:
-                    ymax = pair[1]
-                if pair[1] < ymin:
-                    ymin = pair[1]
+                if pair[0] > xmax_frame:
+                    xmax_frame = pair[0]
+                if pair[0] < xmin_frame:
+                    xmin_frame = pair[0]
+                if pair[1] > ymax_frame:
+                    ymax_frame = pair[1]
+                if pair[1] < ymin_frame:
+                    ymin_frame = pair[1]
+            self.frame_fids[fid] = self.bbox2dict([xmin_frame, ymin_frame, xmax_frame, ymax_frame])
+            if xmax_frame > xmax:
+                xmax = xmax_frame
+            if xmin_frame < xmin_frame:
+                xmin_frame = xmin_frame
+            if ymax_frame > ymax:
+                ymax = ymax_frame
+            if ymin_frame < ymin:
+                ymin = ymin_frame
 
         self.bbox_real = (xmin, ymin, xmax, ymax)
         self.bbox_real_dict = self.bbox2dict(self.bbox_real)
-
-        # bboxes frames
-        self.bbox_geo = geopandas.GeoDataFrame([], columns=['geometry', 'name'], crs="EPSG:4326")
-        self.bbox_geo.loc[0] = {'name':'bbox_frame', 'geometry': MultiLineString([\
-            ((self.bbox_dict['xmin'], self.bbox_dict['ymin']), (self.bbox_dict['xmax'], self.bbox_dict['ymin'])),\
-            ((self.bbox_dict['xmax'], self.bbox_dict['ymin']), (self.bbox_dict['xmax'], self.bbox_dict['ymax'])),\
-            ((self.bbox_dict['xmax'], self.bbox_dict['ymax']), (self.bbox_dict['xmin'], self.bbox_dict['ymax'])),\
-            ((self.bbox_dict['xmin'], self.bbox_dict['ymax']), (self.bbox_dict['xmin'], self.bbox_dict['ymin']))\
-        ])}
-
-        self.bbox_real_geo = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
-        self.bbox_real_geo.loc[0] = {'name':'bbox_real_frame', 'geometry': MultiLineString([\
-            ((self.bbox_real_dict['xmin'], self.bbox_real_dict['ymin']), (self.bbox_real_dict['xmax'], self.bbox_real_dict['ymin'])),\
-            ((self.bbox_real_dict['xmax'], self.bbox_real_dict['ymin']), (self.bbox_real_dict['xmax'], self.bbox_real_dict['ymax'])),\
-            ((self.bbox_real_dict['xmax'], self.bbox_real_dict['ymax']), (self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax'])),\
-            ((self.bbox_real_dict['xmin'], self.bbox_real_dict['ymax']), (self.bbox_real_dict['xmin'], self.bbox_real_dict['ymin']))\
-        ])}
+        self.bbox_real_geo = self.frame_draw(self.bbox_real_dict)
         
+
+    def frame_draw(self, bbox_dict):
+        temp_geodataframe = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
+        temp_geodataframe.loc[0] = {'name':'bbox_real_frame', 'geometry': MultiLineString([\
+            ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),\
+            ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),\
+            ((bbox_dict['xmax'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymax'])),\
+            ((bbox_dict['xmin'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymin']))\
+        ])}
+        return temp_geodataframe
+
 
     def bbox2dict(self, bbox):
         return {
@@ -119,6 +129,7 @@ class coast_part():
         # print(start_point, (end_point_x, end_point_y), wave, bbox)
         return [start_point, (end_point_x, end_point_y)]
 
+
     def wave_parted(self, wave, intersect):
         # drawing parted line
         if intersect.type == 'Point':
@@ -148,6 +159,7 @@ class coast_part():
             # because they are after ground.
             return {'waves': line_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(line_list))]} 
 
+
     def set_waves(self, angle=45, height=0, period=0):
         # Will be repaced by API call
         self.wave_spec = {
@@ -158,6 +170,7 @@ class coast_part():
         # dangerousness should be calculated
         self.wave_spec['dang'] = 80
 
+
     def set_wind(self, angle=45, height=0, period=0):
         # Will be repaced by API call
         self.wind_spec = {
@@ -167,6 +180,7 @@ class coast_part():
         }
         # dangerousness should be calculated
         self.wind_spec['dang'] = 80
+
 
     # draw wave lines
     def wave_draw(self, bbox, wave_spec, precision):
@@ -186,6 +200,7 @@ class coast_part():
                 break
         return waves_geo
 
+
     def intersection(self, waves, coastline):
         intersected = {'waves': [], 'wave_dang': []}
         for _, wave_line in waves.itertuples(): # checking each line for intersection to every coastline part (it can be islands!)
@@ -203,14 +218,17 @@ class coast_part():
 
         return intersection
 
+
     def combination(self, geos):
         # print(geos)
         return geopandas.GeoDataFrame(pandas.concat(geos, ignore_index=True))
+
 
     # Did I miss something? I have to convert coordinates to lon and lat
     def convert_bbox(self, bbox):
         changed_order = [str(bbox[1]), str(bbox[0]), str(bbox[3]), str(bbox[2])]
         return ','.join(changed_order)
+
 
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
         api = overpy.Overpass()
@@ -239,7 +257,8 @@ out;''')
             towns_points_coord.append(Point(node.lon,node.lat))
         return geopandas.GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
 
-    def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False):
+
+    def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False, show_frames=False):
         self.precision = precision
         self.waves_geo = self.wave_draw(self.bbox_real_dict, self.wave_spec, self.precision)
         
@@ -253,6 +272,10 @@ out;''')
         if show_towns is True:
             towns = self.set_towns(self.bbox_real)
             self.geo_all.append(towns)
+
+        if show_frames is True:
+            print([self.frame_draw(self.frame_fids[frame]) for frame in self.frame_fids])
+            self.geo_all.extend([self.frame_draw(self.frame_fids[frame]) for frame in self.frame_fids])
 
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.coastline_geo)
@@ -279,4 +302,4 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
 cascais.set_waves(angle=40)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.001)
+cascais.ocean_plot(precision=0.001, show_bboxes=False, show_frames=True)
