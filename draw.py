@@ -153,17 +153,17 @@ class coast_part():
             (bbox_1.ymin < bbox_2.ymin) and \
             (bbox_1.xmax > bbox_2.xmax) and \
             (bbox_1.ymax > bbox_2.ymax):
-            print(bbox_1, '>', bbox_2)
+            # print(bbox_1, '>', bbox_2)
             return bbox_1
         # bbox_2 encapsulates bbox_1
         elif (bbox_2.xmin < bbox_1.xmin) and \
              (bbox_2.ymin < bbox_1.ymin) and \
              (bbox_2.xmax > bbox_1.xmax) and \
              (bbox_2.ymax > bbox_1.ymax):
-            print(bbox_2, '>', bbox_1)
+            # print(bbox_2, '>', bbox_1)
             return bbox_2
-        else:
-            print(bbox_1, '~', bbox_2)
+        # else:
+            # print(bbox_1, '~', bbox_2)
 
 
     # will be updated, works for the first quarter only 8()
@@ -330,12 +330,13 @@ out;''')
             'bbox_broadened'
         )
 
-
-        self.waves_geo = self.wave_draw(self.bbox_broadened, self.wave_spec, self.precision)
-        
-        # waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
-        waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
-        self.geo_all.append(waves_parted)
+        for cluster in self.frame_clusters:
+            waves_cluster_geo = self.wave_draw(cluster, self.wave_spec, self.precision)
+            waves_parted = self.intersection(waves_cluster_geo, self.coastline_geo)
+            self.geo_all.append(waves_parted)
+        # self.waves_geo = self.wave_draw(self.bbox_broadened, self.wave_spec, self.precision)
+        # waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
+        # self.geo_all.append(waves_parted)
 
         if show_bboxes is True:
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
@@ -373,4 +374,4 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
 cascais.set_waves(angle=40)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, show_towns=False, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=0.001, show_towns=False, show_bboxes=False, show_frames=True)
