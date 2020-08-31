@@ -1,5 +1,6 @@
-import geopandas
+from geopandas import GeoDataFrame, read_file
 import overpy
+import descart
 import pandas
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
@@ -52,7 +53,7 @@ class bbox_box():
         }
 
     def frame_draw(self, bbox_dict, name):
-        temp_geodataframe = geopandas.GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
+        temp_geodataframe = GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
         temp_geodataframe.loc[0] = {'name': name, 'geometry': MultiLineString([\
             ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),\
             ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),\
@@ -91,7 +92,7 @@ class coast_part():
 
     def __init__(self, file_path, bbox):
         self.bbox = bbox_box(bbox, 'source_bbox')
-        self.coastline_geo = geopandas.read_file(file_path, bbox=bbox)
+        self.coastline_geo = read_file(file_path, bbox=bbox)
         self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
@@ -250,7 +251,7 @@ class coast_part():
 
     # draw wave lines
     def wave_draw(self, bbox, wave_spec, precision):
-        waves_geo = geopandas.GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
+        waves_geo = GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
 
         xstep = bbox.xmin
         ystep = bbox.ymin
@@ -279,15 +280,15 @@ class coast_part():
                 intersected['waves'].extend(wave_parts['waves'])
                 intersected['wave_dang'].extend(wave_parts['wave_dang'])
             
-        # intersection_points = geopandas.GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
-        intersection = geopandas.GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
+        # intersection_points = GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
+        intersection = GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
 
         return intersection
 
 
     def combination(self, geos):
         # print(geos)
-        return geopandas.GeoDataFrame(pandas.concat(geos, ignore_index=True))
+        return GeoDataFrame(pandas.concat(geos, ignore_index=True))
 
 
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
@@ -314,7 +315,7 @@ out;''')
             # print(node.tags['name'], node.lat, node.lon)
             towns_points_names.append(node.tags['name'])
             towns_points_coord.append(Point(node.lon,node.lat))
-        return geopandas.GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
+        return GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
 
 
     def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False, show_frames=False):
@@ -371,7 +372,9 @@ out;''')
 
 # bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-cascais = coast_part('/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp', bbox)
+# shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
+shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
+cascais = coast_part(shape_file, bbox)
 cascais.set_waves(angle=40)
 cascais.set_wind()
 cascais.ocean_plot(precision=0.001, show_towns=False, show_bboxes=False, show_frames=True)
