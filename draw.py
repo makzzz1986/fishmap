@@ -17,8 +17,10 @@ class bbox_box():
     dct = {}
     geo = None
     osm_coords = ''
+    name = ''
 
     def __init__(self, bbox, name=''):
+        self.name = str(name)
         self.tpl = bbox
         self.xmin = bbox[0]
         self.ymin = bbox[1]
@@ -34,6 +36,12 @@ class bbox_box():
             str(self.xmax)  \
         ]
         self.osm_coords = ','.join(move_coords)
+
+    def __str__(self):
+        return "{}: {}, {}, {}, {}".format(self.name if self.name != '' else 'Unnamed', self.xmin, self.ymin, self.xmax, self.ymax)
+
+    def __repr__(self):
+        return self.name if self.name != '' else 'Unnamed'
 
     def bbox2dict(self, bbox):
         return {
@@ -59,6 +67,7 @@ class coast_part():
     bbox_real = None
     bbox_broadened = None
     frame_fids = {}
+    frame_clusters = []
 
     wave_spec = {
         'angle': 0, 
@@ -86,17 +95,21 @@ class coast_part():
         self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
 
-        # Getting the real bbox! It is much bigger than bbox
+        # calculate the frames
+
+        # the real frame which is much bigger than which we requested (I don't know the reason)
         xmin = self.bbox.xmax
         xmax = self.bbox.xmin
         ymin = self.bbox.ymax
         ymax = self.bbox.ymin
         for _, fid, r in self.coastline_geo.itertuples():
+            # for every FID from the shape file we create their own frame
             xmin_frame = self.bbox.xmax
             xmax_frame = self.bbox.xmin
             ymin_frame = self.bbox.ymax
             ymax_frame = self.bbox.ymin
             print('FID of the object from shapefile:', fid)
+            # find left bottom and right upper points
             for pair in list(r.coords):
                 if pair[0] > xmax_frame:
                     xmax_frame = pair[0]
@@ -106,7 +119,18 @@ class coast_part():
                     ymax_frame = pair[1]
                 if pair[1] < ymin_frame:
                     ymin_frame = pair[1]
+            # adding to the dict FID's frame
             self.frame_fids[fid] = bbox_box((xmin_frame, ymin_frame, xmax_frame, ymax_frame), fid)
+            # aggregate FIDs by their frames in case we have islands near the coast line. Save the biggest frame which incapsulates the others
+            incapsulating_check_success_flag = False
+            for i, cluster in enumerate(self.frame_clusters):
+                checking = self.check_incapsulation(cluster, self.frame_fids[fid])
+                if checking:
+                    self.frame_clusters[i] = checking
+                    incapsulating_check_success_flag = True
+            if incapsulating_check_success_flag is False:
+                self.frame_clusters.append(self.frame_fids[fid])
+
             # update real bbox maximums and minimums
             if xmax_frame > xmax:
                 xmax = xmax_frame
@@ -117,7 +141,29 @@ class coast_part():
             if ymin_frame < ymin:
                 ymin = ymin_frame
 
+        # remove duplicates
+        self.frame_clusters = set(self.frame_clusters)
+        print(self.frame_clusters)
         self.bbox_real = bbox_box((xmin, ymin, xmax, ymax), 'bbox_real')
+
+
+    def check_incapsulation(self, bbox_1, bbox_2):
+        # bbox_1 encapsulates bbox_2
+        if  (bbox_1.xmin < bbox_2.xmin) and \
+            (bbox_1.ymin < bbox_2.ymin) and \
+            (bbox_1.xmax > bbox_2.xmax) and \
+            (bbox_1.ymax > bbox_2.ymax):
+            # print(bbox_1, '>', bbox_2)
+            return bbox_1
+        # bbox_2 encapsulates bbox_1
+        elif (bbox_2.xmin < bbox_1.xmin) and \
+             (bbox_2.ymin < bbox_1.ymin) and \
+             (bbox_2.xmax > bbox_1.xmax) and \
+             (bbox_2.ymax > bbox_1.ymax):
+            # print(bbox_2, '>', bbox_1)
+            return bbox_2
+        # else:
+            # print(bbox_1, '~', bbox_2)
 
 
     # will be updated, works for the first quarter only 8()
@@ -275,10 +321,7 @@ out;''')
         self.precision = precision
 
         # enlarging the full frame or we won't have waves at the protrusive points
-        if (self.precision * 10) < 0.01:
-            enlarging = 0.01 
-        else: 
-            enlarging = self.precision * 10
+        enlarging = 0.01
         self.bbox_broadened = bbox_box(
             (self.bbox_real.xmin - enlarging,
             self.bbox_real.ymin - enlarging, 
@@ -287,12 +330,13 @@ out;''')
             'bbox_broadened'
         )
 
-
-        self.waves_geo = self.wave_draw(self.bbox_broadened, self.wave_spec, self.precision)
-        
-        # waves_parted = self.intersection(self.coastline_geo, self.waves_geo)
-        waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
-        self.geo_all.append(waves_parted)
+        for cluster in self.frame_clusters:
+            waves_cluster_geo = self.wave_draw(cluster, self.wave_spec, self.precision)
+            waves_parted = self.intersection(waves_cluster_geo, self.coastline_geo)
+            self.geo_all.append(waves_parted)
+        # self.waves_geo = self.wave_draw(self.bbox_broadened, self.wave_spec, self.precision)
+        # waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
+        # self.geo_all.append(waves_parted)
 
         if show_bboxes is True:
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
