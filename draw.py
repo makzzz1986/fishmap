@@ -37,6 +37,7 @@ class bbox_box():
             str(self.xmax)  \
         ]
         self.osm_coords = ','.join(move_coords)
+        # print("BBOX", self.tpl, self.osm_coords)
 
     def __str__(self):
         return "{}: {}, {}, {}, {}".format(self.name if self.name != '' else 'Unnamed', self.xmin, self.ymin, self.xmax, self.ymax)
@@ -95,14 +96,14 @@ class coast_part():
         self.coastline_geo = read_file(file_path, bbox=bbox)
         self.geo_all.append(self.coastline_geo)
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
-
+        print(self.bbox)
         # calculate the frames
 
         # TBD: maybe we need to operate between total_bounds and bounds without any frames?
         # the real frame which is much bigger than which we requested (I don't know the reason)
         xmin = self.coastline_geo.total_bounds.tolist()[0]
-        xmax = self.coastline_geo.total_bounds.tolist()[1]
-        ymin = self.coastline_geo.total_bounds.tolist()[2]
+        ymin = self.coastline_geo.total_bounds.tolist()[1]
+        xmax = self.coastline_geo.total_bounds.tolist()[2]
         ymax = self.coastline_geo.total_bounds.tolist()[3]
         for i, fid in enumerate(self.coastline_geo.FID):
             # for every FID from the shape file we create their own frame
@@ -110,7 +111,7 @@ class coast_part():
             ymin_frame = self.coastline_geo.geometry[i].bounds[1]
             xmax_frame = self.coastline_geo.geometry[i].bounds[2]
             ymax_frame = self.coastline_geo.geometry[i].bounds[3]
-            print('FID of the object from shapefile:', fid)
+            # print('FID of the object from shapefile:', fid)
               # adding to the dict FID's frame
             self.frame_fids[fid] = bbox_box((xmin_frame, ymin_frame, xmax_frame, ymax_frame), fid)
             # aggregate FIDs by their frames in case we have islands near the coast line. Save the biggest frame which incapsulates the others
@@ -124,17 +125,18 @@ class coast_part():
                 self.frame_clusters.append(self.frame_fids[fid])
 
             # update real bbox maximums and minimums
-            if xmax_frame > xmax:
-                xmax = xmax_frame
             if xmin_frame < xmin:
                 xmin = xmin_frame
-            if ymax_frame > ymax:
-                ymax = ymax_frame
             if ymin_frame < ymin:
                 ymin = ymin_frame
-
+            if xmax_frame > xmax:
+                xmax = xmax_frame
+            if ymax_frame > ymax:
+                ymax = ymax_frame
         # remove duplicates
         self.frame_clusters = set(self.frame_clusters)
+        # for cl in self.frame_clusters:
+            # print(cl)
         self.bbox_real = bbox_box((xmin, ymin, xmax, ymax), 'bbox_real')
 
 
@@ -187,36 +189,6 @@ class coast_part():
         return [start_point, (end_point_x, end_point_y)]
 
 
-    def wave_parted(self, wave, intersect):
-        # drawing parted line
-        if intersect.type == 'Point':
-            return {'waves': [LineString([wave.coords[0], intersect])], 'wave_dang': [self.wave_spec['dang']]}
-        if intersect.type == 'MultiPoint':
-            points_list = []
-            # multilinestrings = []
-            line_list = [] # list with lines
-            points_list.append(wave.coords[0])
-            points_list.extend([[point.x, point.y] for point in intersect])
-
-            if len(intersect) == 0:
-                print('No intersect?')
-                return {'waves': [], 'wave_dang': []}
-            # if it is odd, than it ends on the ground
-            if len(intersect) % 2 == 0:
-                # print('Odd?')
-                # for i in intersect:
-                #     print(i)
-                # print(points_list)
-                points_list.append(wave.coords[-1])
-                # print(points_list)
-            # pair dots to lines!
-            for pair in range(0, len(points_list), 2):
-                line_list.append(LineString([points_list[pair], points_list[pair+1]]))
-            # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
-            # because they are after ground.
-            return {'waves': line_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(line_list))]} 
-
-
     def set_waves(self, angle=45, height=0, period=0):
         # Will be repaced by API call
         self.wave_spec = {
@@ -245,7 +217,6 @@ class coast_part():
 
         xstep = bbox.xmin
         ystep = bbox.ymin
-        print(bbox)
         while True:
             waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((xstep, bbox.ymin), wave_spec, bbox))
             xstep += precision
@@ -256,24 +227,53 @@ class coast_part():
             ystep += precision
             if ystep >= bbox.ymax:
                 break
-        print(waves_geo.geometry)
+        # print(waves_geo.geometry)
         return waves_geo
+
+
+    def coords_list(self, obj):
+        if obj.type == 'LineString':
+            return [coord for coord in obj.coords]
+        elif obj.type == 'MultiLineString':
+            temp_list = []
+            for line in obj:
+                temp_list.extend([coord for coord in line.coords])
+            return temp_list
+        else:
+            print('WTF?', obj.type, obj)
+            return None
+
+    def wave_parted(self, wave, coords):
+        # drawing parted line
+        line_list = [] # list with lines
+        # if it is odd, than it ends on the ground
+        if len(coords) % 2 == 1:
+            coords = coords[:-1]
+        for pair in range(0, len(coords), 2):
+            line_list.append(LineString([coords[pair], coords[pair+1]]))
+        # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
+        # because they are after ground.
+        return {'waves': line_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(line_list))]} 
 
 
     def intersection(self, waves, coastline):
         intersected = {'waves': [], 'wave_dang': []}
         for wave in waves.geometry:
-            # print(wave)
+            # check every wave for difference with every part of soil and then difference between them
+            parted_wave_points_coords = self.coords_list(wave)
             for soil in coastline.geometry:
                 diff = wave.difference(soil)
-                if diff.type == 'LineString':   # no or one intersection
-                    intersected['waves'].append(diff)
-                    intersected['wave_dang'].append(self.wave_spec['dang'])
-                else:   # multiple intersections
-                    intersected['waves'].extend(part for part in diff)
-                    intersected['wave_dang'].extend([0 if x>0 else self.wave_spec['dang'] for x in range(len(diff))])
-        intersection = GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
+                parted_wave_points_coords.extend(self.coords_list(diff))
+            # now in parted_wave_points_coords we have a lot of point coordinates, we need to remove deplicates
+            # and draw parted line between them
+            full_intersect_points = list(set(parted_wave_points_coords)) # now we have all intersection, start, end points
+            full_intersect_points.sort()
 
+            wave_parts = self.wave_parted(wave, full_intersect_points) # draw LineStrings
+            intersected['waves'].extend(wave_parts['waves'])
+            intersected['wave_dang'].extend(wave_parts['wave_dang'])
+
+        intersection = GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
         return intersection
 
 
@@ -292,6 +292,7 @@ class coast_part():
 # )->._;
 # (._;>;);
 # out;''')
+
         result = api.query(f'''
 (
   node
@@ -302,8 +303,10 @@ class coast_part():
 out;''')
         towns_points_coord = []
         towns_points_names = []
+        print(f'Grab from Overpass {str(len(result.nodes))} objects')
         for node in result.nodes:
             # print(node.tags['name'], node.lat, node.lon)
+            # print(node.tags)
             towns_points_names.append(node.tags['name'])
             towns_points_coord.append(Point(node.lon,node.lat))
         return GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
@@ -343,8 +346,8 @@ out;''')
 
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.coastline_geo)
-        self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'black', 'label': 'Coast line'})
-        # print(self.bbox_real)
+        self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'grey', 'label': 'Coast line'})
+        print(self.bbox_real)
         plt.annotate(\
             text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision), \
             xy=(self.bbox_real.xmin, self.bbox_real.ymax),\
@@ -368,4 +371,4 @@ shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_p
 cascais = coast_part(shape_file, bbox)
 cascais.set_waves(angle=40)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, show_towns=False, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
