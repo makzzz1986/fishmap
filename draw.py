@@ -1,6 +1,6 @@
 from geopandas import GeoDataFrame, read_file
 import overpy
-import descart
+import descartes
 import pandas
 import matplotlib.pyplot as plt
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
@@ -98,29 +98,20 @@ class coast_part():
 
         # calculate the frames
 
+        # TBD: maybe we need to operate between total_bounds and bounds without any frames?
         # the real frame which is much bigger than which we requested (I don't know the reason)
-        xmin = self.bbox.xmax
-        xmax = self.bbox.xmin
-        ymin = self.bbox.ymax
-        ymax = self.bbox.ymin
-        for _, fid, r in self.coastline_geo.itertuples():
+        xmin = self.coastline_geo.total_bounds.tolist()[0]
+        xmax = self.coastline_geo.total_bounds.tolist()[1]
+        ymin = self.coastline_geo.total_bounds.tolist()[2]
+        ymax = self.coastline_geo.total_bounds.tolist()[3]
+        for i, fid in enumerate(self.coastline_geo.FID):
             # for every FID from the shape file we create their own frame
-            xmin_frame = self.bbox.xmax
-            xmax_frame = self.bbox.xmin
-            ymin_frame = self.bbox.ymax
-            ymax_frame = self.bbox.ymin
+            xmin_frame = self.coastline_geo.geometry[i].bounds[0]
+            ymin_frame = self.coastline_geo.geometry[i].bounds[1]
+            xmax_frame = self.coastline_geo.geometry[i].bounds[2]
+            ymax_frame = self.coastline_geo.geometry[i].bounds[3]
             print('FID of the object from shapefile:', fid)
-            # find left bottom and right upper points
-            for pair in list(r.coords):
-                if pair[0] > xmax_frame:
-                    xmax_frame = pair[0]
-                if pair[0] < xmin_frame:
-                    xmin_frame = pair[0]
-                if pair[1] > ymax_frame:
-                    ymax_frame = pair[1]
-                if pair[1] < ymin_frame:
-                    ymin_frame = pair[1]
-            # adding to the dict FID's frame
+              # adding to the dict FID's frame
             self.frame_fids[fid] = bbox_box((xmin_frame, ymin_frame, xmax_frame, ymax_frame), fid)
             # aggregate FIDs by their frames in case we have islands near the coast line. Save the biggest frame which incapsulates the others
             incapsulating_check_success_flag = False
@@ -144,7 +135,6 @@ class coast_part():
 
         # remove duplicates
         self.frame_clusters = set(self.frame_clusters)
-        print(self.frame_clusters)
         self.bbox_real = bbox_box((xmin, ymin, xmax, ymax), 'bbox_real')
 
 
@@ -255,6 +245,7 @@ class coast_part():
 
         xstep = bbox.xmin
         ystep = bbox.ymin
+        print(bbox)
         while True:
             waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((xstep, bbox.ymin), wave_spec, bbox))
             xstep += precision
@@ -265,22 +256,22 @@ class coast_part():
             ystep += precision
             if ystep >= bbox.ymax:
                 break
+        print(waves_geo.geometry)
         return waves_geo
 
 
     def intersection(self, waves, coastline):
         intersected = {'waves': [], 'wave_dang': []}
-        for _, wave_line in waves.itertuples(): # checking each line for intersection to every coastline part (it can be islands!)
-            full_intersect_points = MultiPoint(()) # all Points and MultiPoints
-            for _, _, coast_line in coastline.itertuples():
-                intersect = wave_line.intersection(coast_line)
-                full_intersect_points = full_intersect_points.union(intersect) # refresh variable with all Points, it is like list.extend 
-            if not full_intersect_points.is_empty:
-                wave_parts = self.wave_parted(wave_line, full_intersect_points)
-                intersected['waves'].extend(wave_parts['waves'])
-                intersected['wave_dang'].extend(wave_parts['wave_dang'])
-            
-        # intersection_points = GeoDataFrame(geometry=intersection_list)  # points of intercestion wave and coastline
+        for wave in waves.geometry:
+            # print(wave)
+            for soil in coastline.geometry:
+                diff = wave.difference(soil)
+                if diff.type == 'LineString':   # no or one intersection
+                    intersected['waves'].append(diff)
+                    intersected['wave_dang'].append(self.wave_spec['dang'])
+                else:   # multiple intersections
+                    intersected['waves'].extend(part for part in diff)
+                    intersected['wave_dang'].extend([0 if x>0 else self.wave_spec['dang'] for x in range(len(diff))])
         intersection = GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
 
         return intersection
@@ -377,4 +368,4 @@ shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_p
 cascais = coast_part(shape_file, bbox)
 cascais.set_waves(angle=40)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.001, show_towns=False, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=0.01, show_towns=False, show_bboxes=False, show_frames=True)
