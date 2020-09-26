@@ -53,9 +53,9 @@ class bbox_box():
             'ymax': bbox[3],
         }
 
-    def frame_draw(self, bbox_dict, name):
-        temp_geodataframe = GeoDataFrame([], columns=['geometry', 'name'] , crs='EPSG:4326')
-        temp_geodataframe.loc[0] = {'name': name, 'geometry': MultiLineString([\
+    def frame_draw(self, bbox_dict, name, type='bbox'):
+        temp_geodataframe = GeoDataFrame([], columns=['geometry', 'name', 'type'] , crs='EPSG:4326')
+        temp_geodataframe.loc[0] = {'name': name, 'type': type, 'geometry': MultiLineString([\
             ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),\
             ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),\
             ((bbox_dict['xmax'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymax'])),\
@@ -227,7 +227,7 @@ class coast_part():
             ystep += precision
             if ystep >= bbox.ymax:
                 break
-        # print(waves_geo.geometry)
+        # print(waves_geo)
         return waves_geo
 
 
@@ -273,7 +273,7 @@ class coast_part():
             intersected['waves'].extend(wave_parts['waves'])
             intersected['wave_dang'].extend(wave_parts['wave_dang'])
 
-        intersection = GeoDataFrame(intersected['wave_dang'], geometry=intersected['waves'], columns=['wave_dang'])
+        intersection = GeoDataFrame({'wave_dang': intersected['wave_dang'], 'type': ['wave' for i in range(len(intersected['wave_dang']))], 'geometry': intersected['waves']})
         return intersection
 
 
@@ -303,13 +303,15 @@ class coast_part():
 out;''')
         towns_points_coord = []
         towns_points_names = []
+        towns_points_type = []
         print(f'Grab from Overpass {str(len(result.nodes))} objects')
         for node in result.nodes:
             # print(node.tags['name'], node.lat, node.lon)
             # print(node.tags)
             towns_points_names.append(node.tags['name'])
+            towns_points_type.append('town')
             towns_points_coord.append(Point(node.lon,node.lat))
-        return GeoDataFrame(towns_points_names, geometry=towns_points_coord, columns=['name'])
+        return GeoDataFrame({'name': towns_points_names, 'type': towns_points_type, 'geometry': towns_points_coord})
 
 
     def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False, show_frames=False):
@@ -337,7 +339,8 @@ out;''')
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
 
         if show_towns is True:
-            towns = self.set_towns(self.bbox_real)
+            towns = self.set_towns(self.bbox_real, place_regexp='city')
+            # print(towns)
             self.geo_all.append(towns)
 
         if show_frames is True:
@@ -345,7 +348,7 @@ out;''')
             self.geo_all.extend([self.frame_fids[frame].geo for frame in self.frame_fids])
 
         self.ocean_geo = self.combination(self.geo_all)
-        # print(self.coastline_geo)
+        print(self.ocean_geo)
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'grey', 'label': 'Coast line'})
         print(self.bbox_real)
         plt.annotate(\
