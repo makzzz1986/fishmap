@@ -160,33 +160,15 @@ class coast_part():
 
 
     # will be updated, works for the first quarter only 8()
-    def wave_line(self, start_point, wave, bbox):
-        xmax = 0
-        ymax = 0
-        if (0 < wave['angle'] < 90):
-            xmax = bbox.xmax # remake them to bbox_dict
-            ymax = bbox.ymax
-        elif (90 < wave['angle'] <= 180):
-            xmax = bbox.xmin
-            ymax = bbox.ymax
-        elif (180 < wave['angle'] < 270):
-            xmax = bbox.xmin
-            ymax = bbox.ymin
-        elif (270 < wave['angle'] <= 360):
-            xmax = bbox.xmax
-            ymax = bbox.ymin
-        elif (wave['angle'] == 90) or (wave['angle'] == 270):
-            # print([start_point, (start_point[0], bbox['ymax'])])
-            return [start_point, (start_point[0], bbox.ymax)]
-        # print(start_point, xmax, ymax)
-        end_point_x = xmax
-        end_point_y = ((xmax - start_point[0]) * tandg(wave['angle'])) + start_point[1]
-        if end_point_y > ymax:
+    def wave_line(self, xstart, ystart, xend, yend, wave_spec):
+        # print(xstart, ystart, xend, yend, wave_spec['angle'])
+        end_point_x = xend
+        end_point_y = ((xend - xstart) * tandg(wave_spec['angle'])) + ystart
+        if end_point_y > yend:
             # print('Too big!')
-            end_point_y = ymax
-            end_point_x = ((ymax - start_point[1]) * cotdg(wave['angle'])) + start_point[0]
-        # print(start_point, (end_point_x, end_point_y), wave, bbox)
-        return [start_point, (end_point_x, end_point_y)]
+            end_point_y = yend
+            end_point_x = ((yend - ystart) * cotdg(wave_spec['angle'])) + xstart
+        return [(xstart, ystart), (end_point_x, end_point_y)]
 
 
     def set_waves(self, angle=45, height=0, period=0):
@@ -215,17 +197,46 @@ class coast_part():
     def wave_draw(self, bbox, wave_spec, precision):
         waves_geo = GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
 
-        xstep = bbox.xmin
-        ystep = bbox.ymin
+        if (0 <= wave_spec['angle'] < 90):
+            xstep = precision
+            ystep = precision
+            xstart = bbox.xmin
+            ystart = bbox.ymin
+            xend = bbox.xmax
+            yend = bbox.ymax
+        elif (90 <= wave_spec['angle'] < 180):
+            xstep = precision * -1
+            ystep = precision
+            xstart = bbox.xmax
+            ystart = bbox.ymin
+            xend = bbox.xmin
+            yend = bbox.ymax
+        elif (180 <= wave_spec['angle'] < 270):
+            xstep = precision * -1
+            ystep = precision * -1
+            xstart = bbox.xmax
+            ystart = bbox.ymax
+            xend = bbox.xmin
+            yend = bbox.ymin
+        elif (270 <= wave_spec['angle'] <= 360):
+            xstep = precision
+            ystep = precision * -1
+            xstart = bbox.xmin
+            ystart = bbox.ymax
+            xend = bbox.xmax
+            yend = bbox.ymin
+
         while True:
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((xstep, bbox.ymin), wave_spec, bbox))
-            xstep += precision
-            if xstep >= bbox.xmax:
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, ystart, xend, yend, wave_spec))
+            xstart += precision
+            print('X', abs(xstart), abs(xend))
+            if abs(xstart) >= abs(xend):
                 break
         while True:
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line((bbox.xmin, ystep), wave_spec, bbox))
-            ystep += precision
-            if ystep >= bbox.ymax:
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, ystart, xend, yend, wave_spec))
+            ystart += precision
+            print('Y', abs(xstart), abs(xend))
+            if abs(ystart) >= abs(yend):
                 break
         # print(waves_geo)
         return waves_geo
@@ -374,6 +385,6 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 # shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=40)
+cascais.set_waves(angle=17)
 cascais.set_wind()
 cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
