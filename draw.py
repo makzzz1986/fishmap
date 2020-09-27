@@ -9,6 +9,15 @@ import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 
 
+def get_sequence(start, end, precision):
+    if start < end:
+        return list(numpy.arange(start, end, precision))
+    elif start > end:
+        return list(numpy.arange(start, end, -precision))
+    else:
+        raise ValueError(start, end, precision)
+
+
 class bbox_box():
     xmin = 0
     ymin = 0
@@ -226,18 +235,14 @@ class coast_part():
             xend = bbox.xmax
             yend = bbox.ymin
 
-        while True:
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, ystart, xend, yend, wave_spec))
-            xstart += precision
-            print('X', abs(xstart), abs(xend))
-            if abs(xstart) >= abs(xend):
-                break
-        while True:
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, ystart, xend, yend, wave_spec))
-            ystart += precision
-            print('Y', abs(xstart), abs(xend))
-            if abs(ystart) >= abs(yend):
-                break
+        for x in get_sequence(xstart, xend, precision):
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(x, ystart, xend, yend, wave_spec))
+            # print('X', x, xstart, xend)
+
+        for y in get_sequence(ystart, yend, precision):
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, y, xend, yend, wave_spec))
+            # print('Y', y, ystart, yend)
+
         # print(waves_geo)
         return waves_geo
 
@@ -385,6 +390,6 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 # shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=17)
+cascais.set_waves(angle=80)
 cascais.set_wind()
 cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
