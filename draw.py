@@ -9,13 +9,11 @@ import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 
 
+# Thanks @Ivan.Baklanov
 def get_sequence(start, end, precision):
-    if start < end:
-        return list(numpy.arange(start, end, precision))
-    elif start > end:
-        return list(numpy.arange(start, end, -precision))
-    else:
-        raise ValueError(start, end, precision)
+    if start > end:
+        precision = -precision
+    return list(numpy.arange(start, end, precision))
 
 
 class bbox_box():
@@ -207,29 +205,21 @@ class coast_part():
         waves_geo = GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
 
         if (0 <= wave_spec['angle'] < 90):
-            xstep = precision
-            ystep = precision
             xstart = bbox.xmin
             ystart = bbox.ymin
             xend = bbox.xmax
             yend = bbox.ymax
         elif (90 <= wave_spec['angle'] < 180):
-            xstep = precision * -1
-            ystep = precision
             xstart = bbox.xmax
             ystart = bbox.ymin
             xend = bbox.xmin
             yend = bbox.ymax
         elif (180 <= wave_spec['angle'] < 270):
-            xstep = precision * -1
-            ystep = precision * -1
             xstart = bbox.xmax
             ystart = bbox.ymax
             xend = bbox.xmin
             yend = bbox.ymin
         elif (270 <= wave_spec['angle'] <= 360):
-            xstep = precision
-            ystep = precision * -1
             xstart = bbox.xmin
             ystart = bbox.ymax
             xend = bbox.xmax
