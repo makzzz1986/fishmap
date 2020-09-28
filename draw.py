@@ -166,21 +166,35 @@ class coast_part():
             # print(bbox_1, '~', bbox_2)
 
 
-    # will be updated, works for the first quarter only 8()
-    def wave_line(self, xstart, ystart, xend, yend, wave_spec):
-        # print(xstart, ystart, xend, yend, wave_spec['angle'])
-        if (0 <= wave_spec['angle'] <= 180):
+    def wave_line(self, xstart, ystart, xend, yend, angle, quart):
+        # print(xstart, ystart, xend, yend, wave_spec['angle'], tandg(wave_spec['angle']), cotdg(wave_spec['angle']))           
+        # the I and II quarters
+        if (quart == 1) or (quart == 2):
             end_point_x = xend
-            end_point_y = ((xend - xstart) * tandg(wave_spec['angle'])) + ystart
+            end_point_y = ((xend - xstart) * tandg(angle)) + ystart
+            # if Y coord out of frame - draw from cotn
             if (end_point_y > yend):
                 end_point_y = yend
-                end_point_x = ((yend - ystart) * cotdg(wave_spec['angle'])) + xstart
-        elif (180 < wave_spec['angle'] <= 360):
+                end_point_x = ((yend - ystart) * cotdg(angle)) + xstart
+        # the III quarter 
+        elif quart == 3:
+            end_point_x = xend
+            end_point_y = ((xstart - xend) * tandg(angle)) + ystart
+            # if Y coord out of frame - draw from cotn
+            if (end_point_y > yend):
+                end_point_y = yend
+                end_point_x = ((yend - ystart) * cotdg(angle)) + xstart
+            # if X coord out of frame - draw from tan from... smth
+            if (end_point_x < xend):
+                end_point_x = xend
+                end_point_y = ((xend - xstart) * tandg(angle)) + ystart
+        # the IX quarter
+        elif quart == 4:
             end_point_y = yend
-            end_point_x = ((yend - ystart) * tandg(wave_spec['angle'])) + xstart
+            end_point_x = ((yend - ystart) * cotdg(angle)) + xstart
             if (end_point_x > xend):
                 end_point_x = xend
-                end_point_y = ((xend - xstart) * cotdg(wave_spec['angle'])) + ystart
+                end_point_y = ((xend - xstart) * tandg(angle)) + ystart
         return [(xstart, ystart), (end_point_x, end_point_y)]
 
 
@@ -215,28 +229,32 @@ class coast_part():
             ystart = bbox.ymin
             xend = bbox.xmax
             yend = bbox.ymax
+            quart = 1
         elif (90 <= wave_spec['angle'] < 180):
             xstart = bbox.xmax
             ystart = bbox.ymin
             xend = bbox.xmin
             yend = bbox.ymax
+            quart = 2
         elif (180 <= wave_spec['angle'] < 270):
             xstart = bbox.xmax
             ystart = bbox.ymax
             xend = bbox.xmin
             yend = bbox.ymin
+            quart = 3
         elif (270 <= wave_spec['angle'] <= 360):
             xstart = bbox.xmin
             ystart = bbox.ymax
             xend = bbox.xmax
             yend = bbox.ymin
+            quart =4
 
         for x in get_sequence(xstart, xend, precision):
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(x, ystart, xend, yend, wave_spec))
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(x, ystart, xend, yend, wave_spec['angle'], quart))
             # print('X', x, xstart, xend)
 
         for y in get_sequence(ystart, yend, precision):
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, y, xend, yend, wave_spec))
+            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, y, xend, yend, wave_spec['angle'], quart))
             # print('Y', y, ystart, yend)
 
         # print(waves_geo)
@@ -368,6 +386,6 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 # shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=220)
+cascais.set_waves(angle=225)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.1, show_towns=True, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
