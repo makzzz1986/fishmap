@@ -169,12 +169,18 @@ class coast_part():
     # will be updated, works for the first quarter only 8()
     def wave_line(self, xstart, ystart, xend, yend, wave_spec):
         # print(xstart, ystart, xend, yend, wave_spec['angle'])
-        end_point_x = xend
-        end_point_y = ((xend - xstart) * tandg(wave_spec['angle'])) + ystart
-        if end_point_y > yend:
-            # print('Too big!')
+        if (0 <= wave_spec['angle'] <= 180):
+            end_point_x = xend
+            end_point_y = ((xend - xstart) * tandg(wave_spec['angle'])) + ystart
+            if (end_point_y > yend):
+                end_point_y = yend
+                end_point_x = ((yend - ystart) * cotdg(wave_spec['angle'])) + xstart
+        elif (180 < wave_spec['angle'] <= 360):
             end_point_y = yend
-            end_point_x = ((yend - ystart) * cotdg(wave_spec['angle'])) + xstart
+            end_point_x = ((yend - ystart) * tandg(wave_spec['angle'])) + xstart
+            if (end_point_x > xend):
+                end_point_x = xend
+                end_point_y = ((xend - xstart) * cotdg(wave_spec['angle'])) + ystart
         return [(xstart, ystart), (end_point_x, end_point_y)]
 
 
@@ -362,6 +368,6 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 # shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=200)
+cascais.set_waves(angle=220)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=0.1, show_towns=True, show_bboxes=False, show_frames=True)
