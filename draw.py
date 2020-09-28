@@ -249,38 +249,20 @@ class coast_part():
             print('WTF?', obj.type, obj)
             return None
 
-    def wave_parted(self, wave, coords):
-        # drawing parted line
-        line_list = [] # list with lines
-        # if it is odd, than it ends on the ground
-        if len(coords) % 2 == 1:
-            coords = coords[:-1]
-        for pair in range(0, len(coords), 2):
-            line_list.append(LineString([coords[pair], coords[pair+1]]))
-        # return list of wave LineStrings and their dangerously, wave_dang for the first one and 0 for others, 
-        # because they are after ground.
-        return {'waves': line_list, 'wave_dang': [0 if x>0 else self.wave_spec['dang'] for x in range(len(line_list))]} 
-
 
     def intersection(self, waves, coastline):
-        intersected = {'waves': [], 'wave_dang': []}
+        waves_parted = []
+        wave_dang = []
         for wave in waves.geometry:
-            # check every wave for difference with every part of soil and then difference between them
-            parted_wave_points_coords = self.coords_list(wave)
-            for soil in coastline.geometry:
-                diff = wave.difference(soil)
-                parted_wave_points_coords.extend(self.coords_list(diff))
-            # now in parted_wave_points_coords we have a lot of point coordinates, we need to remove deplicates
-            # and draw parted line between them
-            full_intersect_points = list(set(parted_wave_points_coords)) # now we have all intersection, start, end points
-            full_intersect_points.sort()
-
-            wave_parts = self.wave_parted(wave, full_intersect_points) # draw LineStrings
-            intersected['waves'].extend(wave_parts['waves'])
-            intersected['wave_dang'].extend(wave_parts['wave_dang'])
-
-        intersection = GeoDataFrame({'wave_dang': intersected['wave_dang'], 'type': ['wave' for i in range(len(intersected['wave_dang']))], 'geometry': intersected['waves']})
-        return intersection
+            diff = wave.difference(coastline.unary_union)
+            if not diff.is_empty:
+                if diff.type == 'LineString':
+                    waves_parted.append(diff)
+                    wave_dang.append(self.wave_spec['dang'])
+                elif diff.type == 'MultiLineString':
+                    waves_parted.extend(diff)
+                    wave_dang.extend([0 if x>0 else self.wave_spec['dang'] for x in range(len(diff))])
+        return GeoDataFrame({'wave_dang': wave_dang, 'type': ['wave' for i in range(len(waves_parted))], 'geometry': waves_parted})
 
 
     def combination(self, geos):
@@ -380,6 +362,6 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 # shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=80)
+cascais.set_waves(angle=200)
 cascais.set_wind()
 cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
