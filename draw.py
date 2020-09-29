@@ -75,8 +75,6 @@ class coast_part():
     bbox = None
     bbox_real = None
     bbox_broadened = None
-    frame_fids = {}
-    frame_clusters = []
 
     wave_spec = {
         'angle': 0, 
@@ -92,6 +90,7 @@ class coast_part():
     }
     precision = 0
     geo_all = []
+    coastline_union = None
     coastline_geo = None
     waves_geo = None
     ocean_geo = None
@@ -101,50 +100,14 @@ class coast_part():
     def __init__(self, file_path, bbox):
         self.bbox = bbox_box(bbox, 'source_bbox')
         self.coastline_geo = read_file(file_path, bbox=bbox)
+        # print(self.coastline_geo)
         self.geo_all.append(self.coastline_geo)
+        self.coastline_union = self.coastline_geo.unary_union
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
         print(self.bbox)
-        # calculate the frames
 
-        # TBD: maybe we need to operate between total_bounds and bounds without any frames?
-        # the real frame which is much bigger than which we requested (I don't know the reason)
-        xmin = self.coastline_geo.total_bounds.tolist()[0]
-        ymin = self.coastline_geo.total_bounds.tolist()[1]
-        xmax = self.coastline_geo.total_bounds.tolist()[2]
-        ymax = self.coastline_geo.total_bounds.tolist()[3]
-        for i, fid in enumerate(self.coastline_geo.FID):
-            # for every FID from the shape file we create their own frame
-            xmin_frame = self.coastline_geo.geometry[i].bounds[0]
-            ymin_frame = self.coastline_geo.geometry[i].bounds[1]
-            xmax_frame = self.coastline_geo.geometry[i].bounds[2]
-            ymax_frame = self.coastline_geo.geometry[i].bounds[3]
-            # print('FID of the object from shapefile:', fid)
-              # adding to the dict FID's frame
-            self.frame_fids[fid] = bbox_box((xmin_frame, ymin_frame, xmax_frame, ymax_frame), fid)
-            # aggregate FIDs by their frames in case we have islands near the coast line. Save the biggest frame which incapsulates the others
-            incapsulating_check_success_flag = False
-            for i, cluster in enumerate(self.frame_clusters):
-                checking = self.check_incapsulation(cluster, self.frame_fids[fid])
-                if checking:
-                    self.frame_clusters[i] = checking
-                    incapsulating_check_success_flag = True
-            if incapsulating_check_success_flag is False:
-                self.frame_clusters.append(self.frame_fids[fid])
-
-            # update real bbox maximums and minimums
-            if xmin_frame < xmin:
-                xmin = xmin_frame
-            if ymin_frame < ymin:
-                ymin = ymin_frame
-            if xmax_frame > xmax:
-                xmax = xmax_frame
-            if ymax_frame > ymax:
-                ymax = ymax_frame
-        # remove duplicates
-        self.frame_clusters = set(self.frame_clusters)
-        # for cl in self.frame_clusters:
-            # print(cl)
-        self.bbox_real = bbox_box((xmin, ymin, xmax, ymax), 'bbox_real')
+        self.bbox_real = bbox_box(self.coastline_union.bounds, 'bbox_real')
+        # print(self.bbox_real)
 
 
     def check_incapsulation(self, bbox_1, bbox_2):
@@ -278,7 +241,7 @@ class coast_part():
         waves_parted = []
         wave_dang = []
         for wave in waves.geometry:
-            diff = wave.difference(coastline.unary_union)
+            diff = wave.difference(coastline)
             if not diff.is_empty:
                 if diff.type == 'LineString':
                     waves_parted.append(diff)
@@ -326,7 +289,7 @@ out;''')
                             'geometry': towns_points_coord})
 
 
-    def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False, show_frames=False):
+    def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False):
         self.precision = precision
 
         # enlarging the full frame or we won't have waves at the protrusive points
@@ -339,13 +302,9 @@ out;''')
             'bbox_broadened'
         )
 
-        for cluster in self.frame_clusters:
-            waves_cluster_geo = self.wave_draw(cluster, self.wave_spec, self.precision)
-            waves_parted = self.intersection(waves_cluster_geo, self.coastline_geo)
-            self.geo_all.append(waves_parted)
-        # self.waves_geo = self.wave_draw(self.bbox_broadened, self.wave_spec, self.precision)
-        # waves_parted = self.intersection(self.waves_geo, self.coastline_geo)
-        # self.geo_all.append(waves_parted)
+        waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
+        waves_parted = self.intersection(waves_cluster_geo, self.coastline_union)
+        self.geo_all.append(waves_parted)
 
         if show_bboxes is True:
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
@@ -354,10 +313,6 @@ out;''')
             towns = self.set_towns(self.bbox_real, place_regexp='city')
             # print(towns)
             self.geo_all.append(towns)
-
-        if show_frames is True:
-            # print([self.frame_draw(self.frame_fids[frame], frame) for frame in self.frame_fids])
-            self.geo_all.extend([self.frame_fids[frame].geo for frame in self.frame_fids])
 
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.ocean_geo)
@@ -383,9 +338,9 @@ out;''')
 
 # bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
 bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-# shape_file = '/home/maksimpisarenko/tmp/osmcoast/coastlines-split-4326/lines.shp'
+# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=225)
+cascais.set_waves(angle=25)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, show_towns=True, show_bboxes=False, show_frames=True)
+cascais.ocean_plot(precision=1, show_towns=True, show_bboxes=False)
