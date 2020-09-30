@@ -337,10 +337,10 @@ out;''')
 
 
 # bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
-bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+# bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
+bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=25)
+cascais.set_waves(angle=330)
 cascais.set_wind()
 cascais.ocean_plot(precision=1, show_towns=True, show_bboxes=False)
