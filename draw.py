@@ -1,9 +1,9 @@
 from geopandas import GeoDataFrame, read_file
 import overpy
 # import descartes
-import pandas
+from pandas import concat
 import matplotlib.pyplot as plt
-from shapely.geometry import Point, LineString, MultiPoint, MultiLineString
+from shapely.geometry import Point, LineString, MultiPoint, MultiLineString, Polygon
 from scipy.special import tandg, cotdg
 import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
@@ -254,7 +254,7 @@ class coast_part():
 
     def combination(self, geos):
         # print(geos)
-        return GeoDataFrame(pandas.concat(geos, ignore_index=True))
+        return GeoDataFrame(concat(geos, ignore_index=True))
 
 
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
@@ -289,6 +289,40 @@ out;''')
                             'geometry': towns_points_coord})
 
 
+    def splitting_map(self, geo, side_length=0.25):
+        print(len(geo))
+        # creating the matrix of tiles through all the map
+        parts_matrix = GeoDataFrame({'geometry': [], 'type': [], 'name': []})
+        ## get length segments from horizontal and vertical
+        x_notch = get_sequence(geo.bounds[0], geo.bounds[2], side_length)
+        x_notch.append(geo.bounds[2])
+        y_notch = get_sequence(geo.bounds[1], geo.bounds[3], side_length)
+        y_notch.append(geo.bounds[3])
+        print(x_notch)
+        print(y_notch)
+        ## fill all map by tiles
+        matrix_counter = 0
+        for y in range(len(y_notch) - 1):
+            for x in range(len(x_notch) - 1):
+                # print(x_notch[x], y_notch[y], x_notch[x+1], y_notch[y+1])
+                parts_matrix.loc[matrix_counter] = {'geometry': Polygon(((x_notch[x]  , y_notch[y]), 
+                                                                         (x_notch[x+1], y_notch[y]), 
+                                                                         (x_notch[x+1], y_notch[y+1]), 
+                                                                         (x_notch[x]  , y_notch[y+1]))), 
+                                                    'name': f'{str(x)}x{str(y)}',
+                                                    'type': 'square'}
+                matrix_counter += 1
+        # print(parts_matrix)
+        ### time: 0.95m
+
+        ## no need in soil polygons which don't touch the ocean. The source of soil consist of polygons, splitted
+        ## approximetely by 1 degree Longtitude and Latitude. If we have an area of ~1 - this polygon is surrounded by soil,
+        ## no need to check waves on it. So, we can exclude them from the map of waves
+        # soil_to_exclude = [soil for soil in geo[0] if soil.area >= 1.1]
+        # soil_to_exclude_geo = GeoDataFrame({'geometry': soil_to_exclude})
+        return soil_to_exclude_geo
+        # return parts_matrix
+
     def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False):
         self.precision = precision
 
@@ -302,9 +336,9 @@ out;''')
             'bbox_broadened'
         )
 
-        waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
-        waves_parted = self.intersection(waves_cluster_geo, self.coastline_union)
-        self.geo_all.append(waves_parted)
+        # waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
+        # waves_parted = self.intersection(waves_cluster_geo, self.coastline_union)
+        # self.geo_all.append(waves_parted)
 
         if show_bboxes is True:
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
@@ -314,25 +348,30 @@ out;''')
             # print(towns)
             self.geo_all.append(towns)
 
+        squares = self.splitting_map(self.coastline_union)
+        squares.plot()
+        plt.show()
+
         self.ocean_geo = self.combination(self.geo_all)
         # print(self.ocean_geo)
         print(self.bbox_real)
 
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
-        self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
-        plt.annotate(
-            text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision),
-            xy=(self.bbox_real.xmin, self.bbox_real.ymax),
-            verticalalignment='top'
-        )
+        # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
+        # plt.annotate(
+        #     text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision),
+        #     xy=(self.bbox_real.xmin, self.bbox_real.ymax),
+        #     verticalalignment='top'
+        # )
         
         # city names
         if show_towns is True:
             for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
                 plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords='offset points', color='darkblue')
 
-        plt.title('Waves and the coastline intersection')
-        plt.show()
+
+        # plt.title('Waves and the coastline intersection')
+        # plt.show()
 
 
 
@@ -343,4 +382,4 @@ shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_p
 cascais = coast_part(shape_file, bbox)
 cascais.set_waves(angle=330)
 cascais.set_wind()
-cascais.ocean_plot(precision=1, show_towns=True, show_bboxes=False)
+cascais.ocean_plot(precision=1, show_towns=False, show_bboxes=False)
