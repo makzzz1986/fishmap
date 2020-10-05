@@ -357,11 +357,11 @@ out;''')
                                                        'type': 'coast_cut',
                                                        'name': row.name}
         print(f'--- {str(time() - start_time)} seconds ---')
-        for i in tiles_diff.itertuples():
-            if i.geometry.type == 'Polygon':
-                print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str(len(i.geometry.exterior.coords.xy[0]))}')
-            elif i.geometry.type == 'MultiPolygon':
-                print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str([len(poly.exterior.coords.xy[0]) for poly in i.geometry])}')
+        # for i in tiles_diff.itertuples():
+        #     if i.geometry.type == 'Polygon':
+        #         print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str(len(i.geometry.exterior.coords.xy[0]))}')
+        #     elif i.geometry.type == 'MultiPolygon':
+        #         print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str([len(poly.exterior.coords.xy[0]) for poly in i.geometry])}')
         return tiles_diff
 
 
