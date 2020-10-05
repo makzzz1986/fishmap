@@ -316,6 +316,16 @@ out;''')
         return parts_matrix
 
 
+    # in case we have a figure like L, |, Г, - . This figures have perpendicular edges and were appeared after splitting source
+    def checking_tetris_shape(self, polygon):
+        points = list(zip(polygon.exterior.xy[0], polygon.exterior.xy[1]))
+        for i, p in enumerate(points[:-1]):
+            # if it has only perpendicular sides - the points go one after another with change only _one_ axis
+            if p[0] != points[i+1][0] and p[1] != points[i+1][1]:
+                return False
+        return True
+
+
     def tiles_coast_diff(self, matrix, coast_union):
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
         start_time = time()
@@ -327,8 +337,14 @@ out;''')
             # we can filter it, because it isn't connected to the ocean, but is on the edge of map
             ## for Polygons filtering is easy:
             if pile_cutted_inverted.type == 'Polygon':
-                if len(pile_cutted_inverted.exterior.coords.xy[0]) != 5:
-                    # print(pile_cutted_inverted.type, row.name, len(pile_cutted_inverted.exterior.coords.xy[0]))
+                points_quantity = len(pile_cutted_inverted.exterior.coords.xy[0])
+                # it is just a parallelogram
+                if points_quantity == 5:
+                    pass
+                # it is a shape like L | Г -  - source artifacts
+                elif (points_quantity < 10) and (self.checking_tetris_shape(pile_cutted_inverted)):
+                    pass
+                else:
                     tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
                                                     'type': 'coast_cut',
                                                     'name': row.name}
@@ -336,28 +352,16 @@ out;''')
             ## we should check that all polygons in that tile have the len of 5 vertices
             elif pile_cutted_inverted.type == 'MultiPolygon':
                 list_pole_length = [len(poly.exterior.coords.xy[0]) for poly in pile_cutted_inverted]
-                print(pile_cutted_inverted.type, row.name, list_pole_length)
                 if list_pole_length != [5 for l in range(len(list_pole_length))]:
-                    pass
-                    # tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
-                    #                                    'type': 'coast_cut',
-                    #                                    'name': row.name}
-                else:
                     tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
                                                        'type': 'coast_cut',
                                                        'name': row.name}
-                    # print(f'Filtered {str(pile_cutted_inverted.type)}, name: {str(row.name)}')
-            else:
-                tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
-                                                    'type': 'coast_cut',
-                                                    'name': row.name}
-                # print(f'Filtered {str(pile_cutted_inverted.type)}, name: {str(row.name)}')
         print(f'--- {str(time() - start_time)} seconds ---')
         for i in tiles_diff.itertuples():
-            if i.type == 'Polygon':
-                print(f'This is {str(i.type)}, name: {str(i.name)}, lens {str(len(i.exterior.coords.xy[0]))}')
-            elif i.type == 'MultiPolygon':
-                print(f'This is {str(i.type)}, name: {str(i.name)}, lens {str([len(poly.exterior.coords.xy[0]) for poly in pile_cutted_inverted])}')
+            if i.geometry.type == 'Polygon':
+                print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str(len(i.geometry.exterior.coords.xy[0]))}')
+            elif i.geometry.type == 'MultiPolygon':
+                print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str([len(poly.exterior.coords.xy[0]) for poly in i.geometry])}')
         return tiles_diff
 
 
@@ -381,6 +385,7 @@ out;''')
         ### time: 1m
         
         return self.tiles_coast_diff(tiles_overlaped, without_big_soil_union)
+        ### time: 1.17m
 
 
     def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False):
