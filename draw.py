@@ -9,6 +9,7 @@ from shapely.geometry import Point, LineString, MultiPoint, MultiLineString, Pol
 from scipy.special import tandg, cotdg
 import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
+from typing import List
 
 
 # Thanks @Ivan.Baklanov
@@ -103,6 +104,7 @@ class coast_part():
         self.bbox = bbox_box(bbox, 'source_bbox')
         self.coastline_geo = read_file(file_path, bbox=bbox)
         # print(self.coastline_geo)
+        del self.coastline_geo['FID'] # removing FID column
         self.geo_all.append(self.coastline_geo)
         self.coastline_union = self.coastline_geo.unary_union
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
@@ -186,32 +188,31 @@ class coast_part():
 
 
     # draw wave lines
-    def wave_draw(self, bbox, wave_spec, precision):
+    def wave_draw(self, bound, wave_spec, precision) -> GeoDataFrame:
         waves_geo = GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
-
         if (0 <= wave_spec['angle'] < 90):
-            xstart = bbox.xmin
-            ystart = bbox.ymin
-            xend = bbox.xmax
-            yend = bbox.ymax
+            xstart = bound[0]
+            ystart = bound[1]
+            xend = bound[2]
+            yend = bound[3]
             quart = 1
         elif (90 <= wave_spec['angle'] < 180):
-            xstart = bbox.xmax
-            ystart = bbox.ymin
-            xend = bbox.xmin
-            yend = bbox.ymax
+            xstart = bound[2]
+            ystart = bound[1]
+            xend = bound[0]
+            yend = bound[3]
             quart = 2
         elif (180 <= wave_spec['angle'] < 270):
-            xstart = bbox.xmax
-            ystart = bbox.ymax
-            xend = bbox.xmin
-            yend = bbox.ymin
+            xstart = bound[2]
+            ystart = bound[3]
+            xend = bound[0]
+            yend = bound[1]
             quart = 3
         elif (270 <= wave_spec['angle'] <= 360):
-            xstart = bbox.xmin
-            ystart = bbox.ymax
-            xend = bbox.xmax
-            yend = bbox.ymin
+            xstart = bound[0]
+            ystart = bound[3]
+            xend = bound[2]
+            yend = bound[1]
             quart =4
 
         for x in get_sequence(xstart, xend, precision):
@@ -239,7 +240,7 @@ class coast_part():
             return None
 
 
-    def intersection(self, waves, coastline):
+    def intersection(self, waves, coastline) -> GeoDataFrame:
         waves_parted = []
         wave_dang = []
         for wave in waves.geometry:
@@ -254,7 +255,7 @@ class coast_part():
         return GeoDataFrame({'wave_dang': wave_dang, 'type': ['wave' for i in range(len(waves_parted))], 'geometry': waves_parted})
 
 
-    def combination(self, geos):
+    def combination(self, geos) -> GeoDataFrame:
         # print(geos)
         return GeoDataFrame(concat(geos, ignore_index=True))
 
@@ -326,7 +327,7 @@ out;''')
         return True
 
 
-    def tiles_coast_diff(self, matrix, coast_union):
+    def tiles_coast_diff(self, matrix, coast_union) -> GeoDataFrame:
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
         start_time = time()
         for row in matrix.itertuples():
@@ -365,10 +366,10 @@ out;''')
         return tiles_diff
 
 
-    def splitting_map(self, geo, bounds, side_length=0.25):
+    def splitting_map(self, geo, bounds, tiling=0.25) -> GeoDataFrame:
         print(len(geo))
 
-        tiles = self.tiling(bounds, side_length)
+        tiles = self.tiling(bounds, tiling)
         # print(parts_matrix)
         ### time: 0.95m - old way
 
@@ -388,22 +389,22 @@ out;''')
         ### time: 1.17m
 
 
-    def ocean_plot(self, precision=0.0001, show_towns=False, show_bboxes=False):
+    def bbox_broading(self, frame, adding_lenght=0.1, name='bbox enlarged') -> bbox_box:
+        bbox_enlarge = bbox_box((frame[0]-adding_lenght,
+                                frame[1]-adding_lenght,
+                                frame[2]+adding_lenght,
+                                frame[3]+adding_lenght),
+                                name=name)
+        print('Enlarging from', frame, 'to', bbox_enlarge)
+        return bbox_enlarge
+
+
+    def ocean_plot(self, precision=0.0001, tiling=0.25, show_towns=False, show_bboxes=False):
         self.precision = precision
 
-        # enlarging the full frame or we won't have waves at the protrusive points
-        enlarging = 0.01
-        self.bbox_broadened = bbox_box(
-            (self.bbox_real.xmin - enlarging,
-            self.bbox_real.ymin - enlarging, 
-            self.bbox_real.xmax + enlarging, 
-            self.bbox_real.ymax + enlarging),
-            'bbox_broadened'
-        )
-
-        waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
-        waves_parted = self.intersection(waves_cluster_geo, self.coastline_union)
-        self.geo_all.append(waves_parted)
+        # waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
+        # waves_parted = self.intersection(waves_cluster_geo, self.coastline_union)
+        # self.geo_all.append(waves_parted)
 
         if show_bboxes is True:
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
@@ -413,22 +414,24 @@ out;''')
             # print(towns)
             self.geo_all.append(towns)
 
-        squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
-        # self.geo_all.append(squares)
-        squares.plot()
-        plt.show()
+        # squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
+        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds).tpl, tiling)
+        for tile in tiles.geometry:
+            waves_tile_geo = self.wave_draw(tile.bounds, self.wave_spec, self.precision)
+            waves_parted = self.intersection(waves_tile_geo, tile)
+            self.geo_all.append(waves_parted)
 
-        # self.ocean_geo = self.combination(self.geo_all)
-        # print(self.ocean_geo)
+        self.ocean_geo = self.combination(self.geo_all)
+        print(self.ocean_geo)
         print(self.bbox_real)
 
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
-        # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
-        # plt.annotate(
-        #     text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision),
-        #     xy=(self.bbox_real.xmin, self.bbox_real.ymax),
-        #     verticalalignment='top'
-        # )
+        self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
+        plt.annotate(
+            text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision),
+            xy=(self.bbox_real.xmin, self.bbox_real.ymax),
+            verticalalignment='top'
+        )
         
         # city names
         if show_towns is True:
@@ -436,8 +439,8 @@ out;''')
                 plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords='offset points', color='darkblue')
 
 
-        # plt.title('Waves and the coastline intersection')
-        # plt.show()
+        plt.title('Waves and the coastline intersection')
+        plt.show()
 
 
 # bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
@@ -447,4 +450,4 @@ shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_p
 cascais = coast_part(shape_file, bbox)
 cascais.set_waves(angle=330)
 cascais.set_wind()
-cascais.ocean_plot(precision=1, show_towns=False, show_bboxes=False)
+cascais.ocean_plot(precision=0.01, tiling=0.5, show_towns=False, show_bboxes=False)
