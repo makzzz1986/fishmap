@@ -1,4 +1,7 @@
-from time import time # for the debug purpose
+# for the debug purpose
+from time import time
+from random import randint
+########
 
 from geopandas import GeoDataFrame, read_file
 import overpy
@@ -63,7 +66,7 @@ class bbox_box():
             'ymax': bbox[3],
         }
 
-    def frame_draw(self, bbox_dict, name, type='bbox'):
+    def frame_draw(self, bbox_dict, name, type='bbox') -> GeoDataFrame:
         temp_geodataframe = GeoDataFrame([], columns=['geometry', 'name', 'type'], crs='EPSG:4326')
         temp_geodataframe.loc[0] = {'name': name, 'type': type, 'geometry': MultiLineString([
             ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),
@@ -114,7 +117,7 @@ class coast_part():
         # print(self.bbox_real)
 
 
-    def check_incapsulation(self, bbox_1, bbox_2):
+    def check_incapsulation(self, bbox_1, bbox_2) -> bbox_box:
         # bbox_1 encapsulates bbox_2
         if  (bbox_1.xmin < bbox_2.xmin) and \
             (bbox_1.ymin < bbox_2.ymin) and \
@@ -133,7 +136,7 @@ class coast_part():
             # print(bbox_1, '~', bbox_2)
 
 
-    def wave_line(self, xstart, ystart, xend, yend, angle, quart):
+    def wave_line(self, xstart, ystart, xend, yend, angle, quart) -> List:
         # print(xstart, ystart, xend, yend, wave_spec['angle'], tandg(wave_spec['angle']), cotdg(wave_spec['angle']))           
         # the I and II quarters
         if (quart == 1) or (quart == 2):
@@ -165,7 +168,7 @@ class coast_part():
         return [(xstart, ystart), (end_point_x, end_point_y)]
 
 
-    def set_waves(self, angle=45, height=0, period=0):
+    def set_waves(self, angle=45, height=0, period=0) -> None:
         # Will be repaced by API call
         self.wave_spec = {
             'angle': angle, 
@@ -176,7 +179,32 @@ class coast_part():
         self.wave_spec['dang'] = 80
 
 
-    def set_wind(self, angle=45, height=0, period=0):
+    def get_waves(self, bbox, force=None) -> dict:
+        wave_spec = {
+            'angle': None, 
+            'height': None,
+            'period': None
+        }
+        if force:
+            wave_spec['angle'] = force + randint(-30, 30)
+            wave_spec['height'] = 1
+            wave_spec['period'] = 10
+        else:
+            # Will be repaced by API call
+            wave_spec['angle'] = 30
+            wave_spec['height'] = 1
+            wave_spec['period'] = 10
+        # print('Wave angle:', wave_spec['angle'])
+        # dangerousness should be calculated
+        return self.calculate_dang(wave_spec)
+
+
+    def calculate_dang(self, wave_spec) -> dict:
+        wave_spec['dang'] = wave_spec['height'] * wave_spec['period']
+        return wave_spec
+
+
+    def set_wind(self, angle=45, height=0, period=0) -> None:
         # Will be repaced by API call
         self.wind_spec = {
             'angle': angle, 
@@ -227,7 +255,7 @@ class coast_part():
         return waves_geo
 
 
-    def coords_list(self, obj):
+    def coords_list(self, obj) -> List:
         if obj.type == 'LineString':
             return [coord for coord in obj.coords]
         elif obj.type == 'MultiLineString':
@@ -260,7 +288,7 @@ class coast_part():
         return GeoDataFrame(concat(geos, ignore_index=True))
 
 
-    def set_towns(self, bbox, place_regexp='city|town|village|hamlet'):
+    def set_towns(self, bbox, place_regexp='city|town|village|hamlet') -> GeoDataFrame:
         api = overpy.Overpass()
 #         print(f'''
 # (
@@ -292,7 +320,7 @@ out;''')
                             'geometry': towns_points_coord})
 
 
-    def tiling(self, bounds, side_length, filter=0.01):
+    def tiling(self, bounds, side_length, filter=0.01) -> GeoDataFrame:
         # creating the matrix of tiles through all the map
         parts_matrix = GeoDataFrame({'geometry': [], 'type': [], 'name': []})
         ## get length segments from horizontal and vertical
@@ -318,7 +346,7 @@ out;''')
 
 
     # in case we have a figure like L, |, Г, - . This figures have perpendicular edges and were appeared after splitting source
-    def checking_tetris_shape(self, polygon):
+    def checking_tetris_shape(self, polygon) -> bool:
         points = list(zip(polygon.exterior.xy[0], polygon.exterior.xy[1]))
         for i, p in enumerate(points[:-1]):
             # if it has only perpendicular sides - the points go one after another with change only _one_ axis
@@ -366,10 +394,8 @@ out;''')
         return tiles_diff
 
 
-    def splitting_map(self, geo, bounds, tiling=0.25) -> GeoDataFrame:
-        print(len(geo))
-
-        tiles = self.tiling(bounds, tiling)
+    def splitting_map(self, geo, bounds, side_length=0.25) -> GeoDataFrame:
+        tiles = self.tiling(bounds, side_length)
         # print(parts_matrix)
         ### time: 0.95m - old way
 
@@ -399,7 +425,7 @@ out;''')
         return bbox_enlarge
 
 
-    def ocean_plot(self, precision=0.0001, tiling=0.25, show_towns=False, show_bboxes=False):
+    def ocean_plot(self, precision=0.0001, tiling=0.25, show_towns=False, show_bboxes=False) -> None:
         self.precision = precision
 
         # waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
@@ -415,20 +441,21 @@ out;''')
             self.geo_all.append(towns)
 
         # squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
-        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds).tpl, tiling)
+        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tiling)
         for tile in tiles.geometry:
-            waves_tile_geo = self.wave_draw(tile.bounds, self.wave_spec, self.precision)
+            # print(tile.bounds)
+            waves_tile_geo = self.wave_draw(tile.bounds, self.get_waves(tile.bounds, force=330), self.precision)
             waves_parted = self.intersection(waves_tile_geo, tile)
             self.geo_all.append(waves_parted)
 
         self.ocean_geo = self.combination(self.geo_all)
-        print(self.ocean_geo)
+        # print(self.ocean_geo)
         print(self.bbox_real)
 
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
         plt.annotate(
-            text='Wave angle: %s\nPrecision: %s' % (self.wave_spec['angle'], self.precision),
+            text=f'Precision: {str(self.precision)}\nTiling: {str(tiling)}',
             xy=(self.bbox_real.xmin, self.bbox_real.ymax),
             verticalalignment='top'
         )
@@ -448,6 +475,6 @@ out;''')
 bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = coast_part(shape_file, bbox)
-cascais.set_waves(angle=330)
+# cascais.set_waves(angle=330)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, tiling=0.5, show_towns=False, show_bboxes=False)
+cascais.ocean_plot(precision=0.01, tiling=0.25, show_towns=False, show_bboxes=False)
