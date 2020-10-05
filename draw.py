@@ -187,20 +187,21 @@ class coast_part():
         }
         if force:
             wave_spec['angle'] = force + randint(-30, 30)
-            wave_spec['height'] = 1
-            wave_spec['period'] = 10
+            wave_spec['height'] = randint(5, 30)/10
+            wave_spec['period'] = randint(50, 100)/10
         else:
             # Will be repaced by API call
             wave_spec['angle'] = 30
             wave_spec['height'] = 1
             wave_spec['period'] = 10
-        # print('Wave angle:', wave_spec['angle'])
         # dangerousness should be calculated
         return self.calculate_dang(wave_spec)
 
 
     def calculate_dang(self, wave_spec) -> dict:
-        wave_spec['dang'] = wave_spec['height'] * wave_spec['period']
+        wave_spec['dang'] = wave_spec['height'] * wave_spec['period'] * 5
+        # print('Wave angle:', wave_spec['angle'], 'dang:', wave_spec['dang'])
+        # print(wave_spec)
         return wave_spec
 
 
@@ -217,7 +218,7 @@ class coast_part():
 
     # draw wave lines
     def wave_draw(self, bound, wave_spec, precision) -> GeoDataFrame:
-        waves_geo = GeoDataFrame([], columns=['geometry'], crs="EPSG:4326")
+        waves_geo = GeoDataFrame({'geometry': [], 'wave_dang': []}, crs="EPSG:4326")
         if (0 <= wave_spec['angle'] < 90):
             xstart = bound[0]
             ystart = bound[1]
@@ -244,11 +245,13 @@ class coast_part():
             quart =4
 
         for x in get_sequence(xstart, xend, precision):
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(x, ystart, xend, yend, wave_spec['angle'], quart))
+            waves_geo.loc[len(waves_geo)] = {'geometry': LineString(self.wave_line(x, ystart, xend, yend, wave_spec['angle'], quart)),
+                                             'wave_dang': wave_spec['dang']}
             # print('X', x, xstart, xend)
 
         for y in get_sequence(ystart, yend, precision):
-            waves_geo.loc[len(waves_geo), 'geometry'] = LineString(self.wave_line(xstart, y, xend, yend, wave_spec['angle'], quart))
+            waves_geo.loc[len(waves_geo)] = {'geometry': LineString(self.wave_line(xstart, y, xend, yend, wave_spec['angle'], quart)),
+                                             'wave_dang': wave_spec['dang']}
             # print('Y', y, ystart, yend)
 
         # print(waves_geo)
@@ -271,15 +274,15 @@ class coast_part():
     def intersection(self, waves, coastline) -> GeoDataFrame:
         waves_parted = []
         wave_dang = []
-        for wave in waves.geometry:
-            diff = wave.difference(coastline)
+        for wave in waves.itertuples():
+            diff = wave.geometry.difference(coastline)
             if not diff.is_empty:
                 if diff.type == 'LineString':
                     waves_parted.append(diff)
-                    wave_dang.append(self.wave_spec['dang'])
+                    wave_dang.append(wave.wave_dang)
                 elif diff.type == 'MultiLineString':
                     waves_parted.extend(diff)
-                    wave_dang.extend([0 if x>0 else self.wave_spec['dang'] for x in range(len(diff))])
+                    wave_dang.extend([0 if x>0 else wave.wave_dang for x in range(len(diff))])
         return GeoDataFrame({'wave_dang': wave_dang, 'type': ['wave' for i in range(len(waves_parted))], 'geometry': waves_parted})
 
 
@@ -444,7 +447,7 @@ out;''')
         tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tiling)
         for tile in tiles.geometry:
             # print(tile.bounds)
-            waves_tile_geo = self.wave_draw(tile.bounds, self.get_waves(tile.bounds, force=330), self.precision)
+            waves_tile_geo = self.wave_draw(tile.bounds, self.get_waves(tile.bounds, force=45), self.precision)
             waves_parted = self.intersection(waves_tile_geo, tile)
             self.geo_all.append(waves_parted)
 
@@ -465,7 +468,7 @@ out;''')
             for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
                 plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords='offset points', color='darkblue')
 
-
+        plt.gca().set_aspect('equal', adjustable='box')
         plt.title('Waves and the coastline intersection')
         plt.show()
 
@@ -477,4 +480,4 @@ shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_p
 cascais = coast_part(shape_file, bbox)
 # cascais.set_waves(angle=330)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, tiling=0.25, show_towns=False, show_bboxes=False)
+cascais.ocean_plot(precision=0.01, tiling=0.25, show_towns=True, show_bboxes=False)
