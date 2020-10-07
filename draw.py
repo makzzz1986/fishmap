@@ -22,7 +22,7 @@ def get_sequence(start, end, precision):
     return list(numpy.arange(start, end, precision))
 
 
-class bbox_box():
+class Bbox():
     xmin = 0
     ymin = 0
     xmax = 0
@@ -77,7 +77,7 @@ class bbox_box():
         return temp_geodataframe
         
 
-class coast_part():
+class WaveMap():
     bbox = None
     bbox_real = None
     bbox_broadened = None
@@ -104,7 +104,7 @@ class coast_part():
 
 
     def __init__(self, file_path, bbox):
-        self.bbox = bbox_box(bbox, 'source_bbox')
+        self.bbox = Bbox(bbox, 'source_bbox')
         self.coastline_geo = read_file(file_path, bbox=bbox)
         # print(self.coastline_geo)
         del self.coastline_geo['FID'] # removing FID column
@@ -113,11 +113,11 @@ class coast_part():
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
         print(self.bbox)
 
-        self.bbox_real = bbox_box(self.coastline_union.bounds, 'bbox_real')
+        self.bbox_real = Bbox(self.coastline_union.bounds, 'bbox_real')
         # print(self.bbox_real)
 
 
-    def check_incapsulation(self, bbox_1, bbox_2) -> bbox_box:
+    def check_incapsulation(self, bbox_1, bbox_2) -> Bbox:
         # bbox_1 encapsulates bbox_2
         if  (bbox_1.xmin < bbox_2.xmin) and \
             (bbox_1.ymin < bbox_2.ymin) and \
@@ -418,8 +418,8 @@ out;''')
         ### time: 1.17m
 
 
-    def bbox_broading(self, frame, adding_lenght=0.1, name='bbox enlarged') -> bbox_box:
-        bbox_enlarge = bbox_box((frame[0]-adding_lenght,
+    def bbox_broading(self, frame, adding_lenght=0.1, name='bbox enlarged') -> Bbox:
+        bbox_enlarge = Bbox((frame[0]-adding_lenght,
                                 frame[1]-adding_lenght,
                                 frame[2]+adding_lenght,
                                 frame[3]+adding_lenght),
@@ -477,7 +477,7 @@ out;''')
 # bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
-cascais = coast_part(shape_file, bbox)
+cascais = WaveMap(shape_file, bbox)
 # cascais.set_waves(angle=330)
 cascais.set_wind()
-cascais.ocean_plot(precision=0.01, tiling=0.25, show_towns=True, show_bboxes=False)
+cascais.ocean_plot(precision=0.01, tiling=1, show_towns=True, show_bboxes=False)
