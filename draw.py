@@ -8,7 +8,7 @@ import overpy
 from geopandas import GeoDataFrame, read_file
 from pandas import concat
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString, Polygon
-from scipy.special import tandg, cotdg
+from scipy import special as scipy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 from typing import List
 # import descartes
@@ -21,61 +21,6 @@ def get_sequence(start, end, precision):
         precision = -precision
     return list(numpy.arange(start, end, precision))
 
-
-class Bbox():
-    xmin = 0
-    ymin = 0
-    xmax = 0
-    ymax = 0
-    tpl = () # xmin, ymin, xmax, ymax
-    dct = {}
-    geo = None
-    osm_coords = ''
-    name = ''
-
-    def __init__(self, bbox, name=''):
-        self.name = str(name)
-        self.tpl = bbox
-        self.xmin = bbox[0]
-        self.ymin = bbox[1]
-        self.xmax = bbox[2]
-        self.ymax = bbox[3]
-        self.dct = self.bbox2dict(self.tpl)
-        self.geo = self.frame_draw(self.dct, name)
-        # for OSM OVERPASS API we need change the order of lat, lan
-        move_coords = [
-            str(self.ymin),
-            str(self.xmin),
-            str(self.ymax),
-            str(self.xmax) 
-        ]
-        self.osm_coords = ','.join(move_coords)
-        # print("BBOX", self.tpl, self.osm_coords)
-
-    def __str__(self):
-        return "{}: {}, {}, {}, {}".format(self.name if self.name != '' else 'Unnamed', self.xmin, self.ymin, self.xmax, self.ymax)
-
-    def __repr__(self):
-        return self.name if self.name != '' else 'Unnamed'
-
-    def bbox2dict(self, bbox):
-        return {
-            'xmin': bbox[0],
-            'ymin': bbox[1],
-            'xmax': bbox[2],
-            'ymax': bbox[3],
-        }
-
-    def frame_draw(self, bbox_dict, name, type='bbox') -> GeoDataFrame:
-        temp_geodataframe = GeoDataFrame([], columns=['geometry', 'name', 'type'], crs='EPSG:4326')
-        temp_geodataframe.loc[0] = {'name': name, 'type': type, 'geometry': MultiLineString([
-            ((bbox_dict['xmin'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymin'])),
-            ((bbox_dict['xmax'], bbox_dict['ymin']), (bbox_dict['xmax'], bbox_dict['ymax'])),
-            ((bbox_dict['xmax'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymax'])),
-            ((bbox_dict['xmin'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymin']))
-        ])}
-        return temp_geodataframe
-        
 
 class WaveMap():
     bbox = None
@@ -137,34 +82,34 @@ class WaveMap():
 
 
     def wave_line(self, xstart, ystart, xend, yend, angle, quart) -> List:
-        # print(xstart, ystart, xend, yend, wave_spec['angle'], tandg(wave_spec['angle']), cotdg(wave_spec['angle']))           
+        # print(xstart, ystart, xend, yend, wave_spec['angle'], special.tandg(wave_spec['angle']), special.cotdg(wave_spec['angle']))           
         # the I and II quarters
         if (quart == 1) or (quart == 2):
             end_point_x = xend
-            end_point_y = ((xend - xstart) * tandg(angle)) + ystart
+            end_point_y = ((xend - xstart) * special.tandg(angle)) + ystart
             # if Y coord out of frame - draw from cotn
             if (end_point_y > yend):
                 end_point_y = yend
-                end_point_x = ((yend - ystart) * cotdg(angle)) + xstart
+                end_point_x = ((yend - ystart) * special.cotdg(angle)) + xstart
         # the III quarter 
         elif quart == 3:
             end_point_x = xend
-            end_point_y = ((xstart - xend) * tandg(angle)) + ystart
+            end_point_y = ((xstart - xend) * special.tandg(angle)) + ystart
             # if Y coord out of frame - draw from cotn
             if (end_point_y > yend):
                 end_point_y = yend
-                end_point_x = ((yend - ystart) * cotdg(angle)) + xstart
+                end_point_x = ((yend - ystart) * special.cotdg(angle)) + xstart
             # if X coord out of frame - draw from tan from... smth
             if (end_point_x < xend):
                 end_point_x = xend
-                end_point_y = ((xend - xstart) * tandg(angle)) + ystart
+                end_point_y = ((xend - xstart) * special.tandg(angle)) + ystart
         # the IX quarter
         elif quart == 4:
             end_point_y = yend
-            end_point_x = ((yend - ystart) * cotdg(angle)) + xstart
+            end_point_x = ((yend - ystart) * special.cotdg(angle)) + xstart
             if (end_point_x > xend):
                 end_point_x = xend
-                end_point_y = ((xend - xstart) * tandg(angle)) + ystart
+                end_point_y = ((xend - xstart) * special.tandg(angle)) + ystart
         return [(xstart, ystart), (end_point_x, end_point_y)]
 
 
