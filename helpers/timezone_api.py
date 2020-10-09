@@ -1,39 +1,44 @@
 import requests
 
-# curl "http://api.timezonedb.com/v2.1/get-time-zone?key=&format=json&by=position&lat=38.0002&lng=-9"
+# curl "https://api.timezonedb.com/v2.1/get-time-zone?key=&format=json&by=position&lat=38.0002&lng=-9"
+#     {"status":"OK",
+#     "message":"",
+#     "countryCode":"PT",
+#     "countryName":"Portugal",
+#     "zoneName":"Europe\/Lisbon",
+#     "abbreviation":"WEST",
+#     "gmtOffset":3600,
+#     "dst":"1",
+#     "zoneStart":1585443600,
+#     "zoneEnd":1603587600,
+#     "nextAbbreviation":"WET",
+#     "timestamp":1602258182,
+#     "formatted":"2020-10-09 15:43:02"}
+
 
 class Time():
     latitude = 0.
     longitude = 0.
     utc_offset = 0
-    zoneStart = 0
-    zoneEnd = 0
-    zoneName = ''
-    countryName = ''
+    zone_name = ''
+    country_name = ''
 
     def __init__(self, latitude, longitude):
         self.longitude = longitude
         self.latitude = latitude
 
-    def get_timezonedb(self, api_token, ) -> dict:
+    def get_static(self) -> dict:
+        return {'utc_offset': 3600, 'country_name': 'Portugal'}
+
+    def get_timezonedb(self, api_token) -> dict:
         response = requests.get(
-            'https://api.stormglass.io/v2/weather/point',
+            'https://api.timezonedb.com/v2.1/get-time-zone',
             params={
                 'lat': self.latitude,
                 'lng': self.longitude,
-                'params': ','.join([
-                    'airTemperature',
-                    'windDirection',
-                    'windSpeed',
-                    'waveDirection',
-                    'waveHeight',
-                    'wavePeriod',
-                    'windWaveDirection',
-                    'windWaveHeight',
-                    'windWavePeriod'
-                ]),
-                'start': utc,  # Convert to UTC timestamp
-                'end': utc  # we can request data for a few days, can we somehow use it to build few forecast at once?
+                'format': 'json',
+                'key': api_token,
+                'by': 'position'
             },
             headers={
                 'Authorization': api_token
@@ -42,5 +47,7 @@ class Time():
 
         json_data = response.json()
         print(json_data)
-        self.angle = json_data['hours'][0]['waveDirection']['sg']
-        return {'angle': round(self.angle), 'dang': self.calculate_dang(json_data['hours'][0]['waveHeight']['sg'], json_data['hours'][0]['wavePeriod']['sg'])}
+        self.utc_offset = json_data['gmtOffset']
+        self.zone_name = json_data['zoneName']
+        self.country_name = json_data['countryName']
+        return {'utc_offset': self.utc_offset, 'country_name': self.country_name}
