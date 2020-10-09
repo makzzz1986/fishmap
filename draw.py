@@ -1,18 +1,18 @@
 # for the debug purpose
 from time import time
-from random import randint
 ########
 
-from geopandas import GeoDataFrame, read_file
-import overpy
-# import descartes
-from pandas import concat
+import numpy
 import matplotlib.pyplot as plt
+import overpy
+from geopandas import GeoDataFrame, read_file
+from pandas import concat
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString, Polygon
 from scipy.special import tandg, cotdg
-import numpy
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 from typing import List
+# import descartes
+from helpers import *
 
 
 # Thanks @Ivan.Baklanov
@@ -166,54 +166,6 @@ class WaveMap():
                 end_point_x = xend
                 end_point_y = ((xend - xstart) * tandg(angle)) + ystart
         return [(xstart, ystart), (end_point_x, end_point_y)]
-
-
-    def set_waves(self, angle=45, height=0, period=0) -> None:
-        # Will be repaced by API call
-        self.wave_spec = {
-            'angle': angle, 
-            'height': height,
-            'period': period
-        }
-        # dangerousness should be calculated
-        self.wave_spec['dang'] = 80
-
-
-    def get_waves(self, bbox, force=None) -> dict:
-        wave_spec = {
-            'angle': None, 
-            'height': None,
-            'period': None
-        }
-        if force:
-            wave_spec['angle'] = force + randint(-30, 30)
-            wave_spec['height'] = randint(5, 30)/10
-            wave_spec['period'] = randint(50, 100)/10
-        else:
-            # Will be repaced by API call
-            wave_spec['angle'] = 30
-            wave_spec['height'] = 1
-            wave_spec['period'] = 10
-        # dangerousness should be calculated
-        return self.calculate_dang(wave_spec)
-
-
-    def calculate_dang(self, wave_spec) -> dict:
-        wave_spec['dang'] = wave_spec['height'] * wave_spec['period'] * 5
-        # print('Wave angle:', wave_spec['angle'], 'dang:', wave_spec['dang'])
-        # print(wave_spec)
-        return wave_spec
-
-
-    def set_wind(self, angle=45, height=0, period=0) -> None:
-        # Will be repaced by API call
-        self.wind_spec = {
-            'angle': angle, 
-            'height': height,
-            'period': period
-        }
-        # dangerousness should be calculated
-        self.wind_spec['dang'] = 80
 
 
     # draw wave lines
