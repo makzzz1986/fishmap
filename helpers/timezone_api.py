@@ -57,7 +57,3 @@ class Time():
         self.zone_name = json_data['zoneName']
         self.country_name = json_data['countryName']
         return {'utc_offset': self.utc_offset, 'country_name': self.country_name}
-
-
-a = Time(38.8, -9, {'days': 1, 'hours': 8})
-print(a.get_static())
