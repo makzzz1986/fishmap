@@ -1,4 +1,5 @@
 from geopandas import GeoDataFrame
+from shapely.geometry import MultiLineString, LineString
 
 
 class Bbox():

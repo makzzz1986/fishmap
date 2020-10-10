@@ -11,9 +11,9 @@ class Wave():
     dang = 0.
     utc_timestamp = 0
 
-    def __init__(self, latitude, longitude, utc_timestamp):
-        self.longitude = longitude
+    def __init__(self, longitude, latitude, utc_timestamp):
         self.latitude = latitude
+        self.longitude = longitude
         self.utc_timestamp = utc_timestamp
 
     def calculate_dang(self, height, period) -> int:
@@ -62,6 +62,6 @@ class Wave():
         )
 
         json_data = response.json()
-        print(json_data)
+        print('Weather API response: ', json_data)
         self.angle = json_data['hours'][0]['waveDirection']['sg']
         return {'angle': round(self.angle), 'dang': self.calculate_dang(json_data['hours'][0]['waveHeight']['sg'], json_data['hours'][0]['wavePeriod']['sg'])}

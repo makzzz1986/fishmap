@@ -2,13 +2,14 @@
 from time import time
 ########
 
+import os
 import numpy
 import matplotlib.pyplot as plt
 import overpy
 from geopandas import GeoDataFrame, read_file
 from pandas import concat
 from shapely.geometry import Point, LineString, MultiPoint, MultiLineString, Polygon
-from scipy import special as scipy
+from scipy import special as sc
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 from typing import List
 # import descartes
@@ -82,34 +83,34 @@ class WaveMap():
 
 
     def wave_line(self, xstart, ystart, xend, yend, angle, quart) -> List:
-        # print(xstart, ystart, xend, yend, wave_spec['angle'], special.tandg(wave_spec['angle']), special.cotdg(wave_spec['angle']))           
+        # print(xstart, ystart, xend, yend, wave_spec['angle'], sc.tandg(wave_spec['angle']), sc.cotdg(wave_spec['angle']))           
         # the I and II quarters
         if (quart == 1) or (quart == 2):
             end_point_x = xend
-            end_point_y = ((xend - xstart) * special.tandg(angle)) + ystart
+            end_point_y = ((xend - xstart) * sc.tandg(angle)) + ystart
             # if Y coord out of frame - draw from cotn
             if (end_point_y > yend):
                 end_point_y = yend
-                end_point_x = ((yend - ystart) * special.cotdg(angle)) + xstart
+                end_point_x = ((yend - ystart) * sc.cotdg(angle)) + xstart
         # the III quarter 
         elif quart == 3:
             end_point_x = xend
-            end_point_y = ((xstart - xend) * special.tandg(angle)) + ystart
+            end_point_y = ((xstart - xend) * sc.tandg(angle)) + ystart
             # if Y coord out of frame - draw from cotn
             if (end_point_y > yend):
                 end_point_y = yend
-                end_point_x = ((yend - ystart) * special.cotdg(angle)) + xstart
+                end_point_x = ((yend - ystart) * sc.cotdg(angle)) + xstart
             # if X coord out of frame - draw from tan from... smth
             if (end_point_x < xend):
                 end_point_x = xend
-                end_point_y = ((xend - xstart) * special.tandg(angle)) + ystart
+                end_point_y = ((xend - xstart) * sc.tandg(angle)) + ystart
         # the IX quarter
         elif quart == 4:
             end_point_y = yend
-            end_point_x = ((yend - ystart) * special.cotdg(angle)) + xstart
+            end_point_x = ((yend - ystart) * sc.cotdg(angle)) + xstart
             if (end_point_x > xend):
                 end_point_x = xend
-                end_point_y = ((xend - xstart) * special.tandg(angle)) + ystart
+                end_point_y = ((xend - xstart) * sc.tandg(angle)) + ystart
         return [(xstart, ystart), (end_point_x, end_point_y)]
 
 
@@ -258,7 +259,9 @@ out;''')
     def tiles_coast_diff(self, matrix, coast_union) -> GeoDataFrame:
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
         start_time = time()
+        # print(matrix)
         for row in matrix.itertuples():
+            # print('ROW', row)
             pile_cutted = row.geometry.difference(coast_union)
             pile_cutted_inverted = row.geometry.difference(pile_cutted)
             
@@ -296,7 +299,6 @@ out;''')
 
     def splitting_map(self, geo, bounds, side_length=0.25) -> GeoDataFrame:
         tiles = self.tiling(bounds, side_length)
-        # print(parts_matrix)
         ### time: 0.95m - old way
 
         ## no need in soil polygons which don't touch the ocean. The source of soil consist of polygons, splitted
@@ -310,7 +312,6 @@ out;''')
         overlaping = tiles.overlaps(without_big_soil_union)
         tiles_overlaped = tiles[overlaping]
         ### time: 1m
-        
         return self.tiles_coast_diff(tiles_overlaped, without_big_soil_union)
         ### time: 1.17m
 
@@ -328,23 +329,28 @@ out;''')
     def ocean_plot(self, precision=0.0001, tiling=0.25, show_towns=False, show_bboxes=False) -> None:
         self.precision = precision
 
-        # waves_cluster_geo = self.wave_draw(self.bbox_real, self.wave_spec, self.precision)
-        # waves_parted = self.intersection(waves_cluster_geo, self.coastline_union)
-        # self.geo_all.append(waves_parted)
-
         if show_bboxes is True:
             self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
 
         if show_towns is True:
             towns = self.set_towns(self.bbox_real, place_regexp='city')
-            # print(towns)
             self.geo_all.append(towns)
 
         # squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
         tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tiling)
         for tile in tiles.geometry:
-            # print(tile.bounds)
-            waves_tile_geo = self.wave_draw(tile.bounds, self.get_waves(tile.bounds, force=45), self.precision)
+            # getting coordinates of tile's center
+            centroid_coordinates = tile.centroid.coords
+            lon = centroid_coordinates.xy[0][0]
+            lat = centroid_coordinates.xy[1][0]
+            # getting center time zone (API or fixed Portugal TZ)
+            tz = Time(lon, lat, {'days': 1, 'hours': 8})
+            tz_time = tz.get_static()
+            # getting waves' specification - angle, height, period and dangerousness
+            wave = Wave(lon, lat, tz_time['timestamp'])
+            wave_spec = wave.get_random(angle=80)
+
+            waves_tile_geo = self.wave_draw(tile.bounds, wave_spec, self.precision)
             waves_parted = self.intersection(waves_tile_geo, tile)
             self.geo_all.append(waves_parted)
 
@@ -370,11 +376,9 @@ out;''')
         plt.show()
 
 
-# bbox = (-9.48859, 38.71225, -9.48369, 38.70596)
-# bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
+# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = WaveMap(shape_file, bbox)
-# cascais.set_waves(angle=330)
-cascais.set_wind()
-cascais.ocean_plot(precision=0.01, tiling=1, show_towns=True, show_bboxes=False)
+
+cascais.ocean_plot(precision=0.01, tiling=0.25, show_towns=True, show_bboxes=False)
