@@ -348,7 +348,8 @@ out;''')
             tz_time = tz.get_static()
             # getting waves' specification - angle, height, period and dangerousness
             wave = Wave(lon, lat, tz_time['timestamp'])
-            wave_spec = wave.get_random(angle=80)
+            # wave_spec = wave.get_random(angle=80)
+            wave_spec = wave.get_stormglass(os.environ['WEATHER_API_TOKEN'])
 
             waves_tile_geo = self.wave_draw(tile.bounds, wave_spec, self.precision)
             waves_parted = self.intersection(waves_tile_geo, tile)
@@ -376,9 +377,9 @@ out;''')
         plt.show()
 
 
-bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+# bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
+bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 cascais = WaveMap(shape_file, bbox)
 
-cascais.ocean_plot(precision=0.01, tiling=0.25, show_towns=True, show_bboxes=False)
+cascais.ocean_plot(precision=0.001, tiling=0.5, show_towns=True, show_bboxes=False)

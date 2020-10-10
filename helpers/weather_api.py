@@ -36,7 +36,7 @@ class Wave():
         return {'angle': round(self.angle), 'dang': self.calculate_dang(self.height, self.period)}
 
 # Metod for [Stormglass API](https://stormglass.io/)
-    def get_stormglass(self, api_token, utc) -> dict:
+    def get_stormglass(self, api_token) -> dict:
         response = requests.get(
             'https://api.stormglass.io/v2/weather/point',
             params={
@@ -53,8 +53,8 @@ class Wave():
                     'windWaveHeight',
                     'windWavePeriod'
                 ]),
-                'start': utc,  # Convert to UTC timestamp
-                'end': utc  # we can request data for a few days, can we somehow use it to build few forecast at once?
+                'start': self.utc_timestamp,  # Convert to UTC timestamp
+                'end': self.utc_timestamp  # we can request data for a few days, can we somehow use it to build few forecast at once?
             },
             headers={
                 'Authorization': api_token
@@ -63,5 +63,10 @@ class Wave():
 
         json_data = response.json()
         print('Weather API response: ', json_data)
-        self.angle = json_data['hours'][0]['waveDirection']['sg']
-        return {'angle': round(self.angle), 'dang': self.calculate_dang(json_data['hours'][0]['waveHeight']['sg'], json_data['hours'][0]['wavePeriod']['sg'])}
+        api_angle = json_data['hours'][0]['waveDirection']['sg'] # 0 degree == 90 actual degree
+        self.angle = (api_angle + 90) - ((api_angle + 90) // 360) * 360 # add 90 degree and remove 360 if it become more than 360
+        return {'angle': round(self.angle), 
+                'dang': self.calculate_dang(
+                    json_data['hours'][0]['waveHeight']['sg'], 
+                    json_data['hours'][0]['wavePeriod']['sg'])
+                }
