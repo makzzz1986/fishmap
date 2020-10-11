@@ -12,6 +12,7 @@ from shapely.geometry import Point, LineString, MultiPoint, MultiLineString, Pol
 from scipy import special as sc
 from matplotlib.colors import ColorConverter, LinearSegmentedColormap
 from typing import List
+from datetime import datetime
 # import descartes
 from helpers import *
 
@@ -47,13 +48,13 @@ class WaveMap():
     waves_geo = None
     ocean_geo = None
     cmap = None
+    tile_lenght = 0.
 
 
     def __init__(self, file_path, bbox):
         self.bbox = Bbox(bbox, 'source_bbox')
-        self.coastline_geo = read_file(file_path, bbox=bbox)
+        self.coastline_geo = read_file(file_path, bbox=bbox, ignore_fields=['FID'])
         # print(self.coastline_geo)
-        del self.coastline_geo['FID'] # removing FID column
         self.geo_all.append(self.coastline_geo)
         self.coastline_union = self.coastline_geo.unary_union
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
@@ -312,6 +313,7 @@ out;''')
         overlaping = tiles.overlaps(without_big_soil_union)
         tiles_overlaped = tiles[overlaping]
         ### time: 1m
+        print('Tiles:', str(len(tiles_overlaped)))
         return self.tiles_coast_diff(tiles_overlaped, without_big_soil_union)
         ### time: 1.17m
 
@@ -326,18 +328,12 @@ out;''')
         return bbox_enlarge
 
 
-    def ocean_plot(self, precision=0.0001, tiling=0.25, show_towns=False, show_bboxes=False) -> None:
+    def ocean_calculating(self, precision=0.0001, tile_lenght=0.25, debug=False) -> None:
         self.precision = precision
-
-        if show_bboxes is True:
-            self.geo_all.extend([self.bbox_real.geo, self.bbox.geo])
-
-        if show_towns is True:
-            towns = self.set_towns(self.bbox_real, place_regexp='city')
-            self.geo_all.append(towns)
+        self.tile_lenght = tile_lenght
 
         # squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
-        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tiling)
+        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tile_lenght)
         for tile in tiles.geometry:
             # getting coordinates of tile's center
             centroid_coordinates = tile.centroid.coords
@@ -348,8 +344,10 @@ out;''')
             tz_time = tz.get_static()
             # getting waves' specification - angle, height, period and dangerousness
             wave = Wave(lon, lat, tz_time['timestamp'])
-            # wave_spec = wave.get_random(angle=80)
-            wave_spec = wave.get_stormglass(os.environ['WEATHER_API_TOKEN'])
+            if debug is True:
+                wave_spec = wave.get_random(angle=45)
+            else:
+                wave_spec = wave.get_stormglass(os.environ['WEATHER_API_TOKEN'], debug=True)
 
             waves_tile_geo = self.wave_draw(tile.bounds, wave_spec, self.precision)
             waves_parted = self.intersection(waves_tile_geo, tile)
@@ -359,14 +357,24 @@ out;''')
         # print(self.ocean_geo)
         print(self.bbox_real)
 
+
+    def plot(self, show_towns=False, show_bboxes=False) -> None:
+        if show_bboxes is True:
+            self.ocean_geo[len(self.ocean_geo)] = self.bbox_real.geo
+            self.ocean_geo[len(self.ocean_geo)] = self.bbox.geo
+
+        if show_towns is True:
+            towns = self.set_towns(self.bbox_real, place_regexp='city')
+            self.ocean_geo = self.combination([self.ocean_geo, towns])
+
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
         plt.annotate(
-            text=f'Precision: {str(self.precision)}\nTiling: {str(tiling)}',
+            text=f'Precision: {str(self.precision)}\nTiling: {str(self.tile_lenght)}',
             xy=(self.bbox_real.xmin, self.bbox_real.ymax),
             verticalalignment='top'
         )
-        
+
         # city names
         if show_towns is True:
             for x, y, name in zip(towns.geometry.x, towns.geometry.y, towns.name):
@@ -377,9 +385,18 @@ out;''')
         plt.show()
 
 
+    def save_to_file(self, file_prefix):
+        now = datetime.now().isoformat()
+        filepath = f'{file_prefix}-{now}.geojson'
+        self.ocean_geo.to_file(filepath, driver='GeoJSON')
+        print('File saved to', filepath)
+
+
 # bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
-cascais = WaveMap(shape_file, bbox)
+portugal = WaveMap(shape_file, bbox)
 
-cascais.ocean_plot(precision=0.001, tiling=0.5, show_towns=True, show_bboxes=False)
+portugal.ocean_calculating(precision=0.001, tile_lenght=0.5, debug=False)
+portugal.plot(show_towns=True, show_bboxes=False)
+portugal.save_to_file('ready_shapes/portugal')
