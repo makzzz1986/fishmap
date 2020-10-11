@@ -29,14 +29,14 @@ class Wave():
         self.period = period
         return {'angle': round(self.angle), 'dang': self.calculate_dang(self.height, self.period)}
 
-    def get_random(self, angle=45, height=0, period=0) -> dict:
-        self.angle = angle + randint(-30, 30)
+    def get_random(self, angle=45, height=0, period=0, range_diff=20) -> dict:
+        self.angle = angle + randint(range_diff*-1, range_diff)
         self.height = randint(5, 30)/10
         self.period = randint(50, 100)/10
         return {'angle': round(self.angle), 'dang': self.calculate_dang(self.height, self.period)}
 
 # Metod for [Stormglass API](https://stormglass.io/)
-    def get_stormglass(self, api_token) -> dict:
+    def get_stormglass(self, api_token, debug=False) -> dict:
         response = requests.get(
             'https://api.stormglass.io/v2/weather/point',
             params={
@@ -62,7 +62,10 @@ class Wave():
         )
 
         json_data = response.json()
-        print('Weather API response: ', json_data)
+
+        if debug is True:
+            print('Weather API response: ', json_data)
+            
         api_angle = json_data['hours'][0]['waveDirection']['sg'] # 0 degree == 90 actual degree
         self.angle = (api_angle + 90) - ((api_angle + 90) // 360) * 360 # add 90 degree and remove 360 if it become more than 360
         return {'angle': round(self.angle), 
