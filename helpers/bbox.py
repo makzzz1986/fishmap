@@ -1,5 +1,5 @@
 from geopandas import GeoDataFrame
-from shapely.geometry import MultiLineString, LineString
+from shapely.geometry import MultiLineString, LineString, Polygon
 
 
 class Bbox():
@@ -10,6 +10,7 @@ class Bbox():
     tpl = () # xmin, ymin, xmax, ymax
     dct = {}
     geo = None
+    polygon = None
     osm_coords = ''
     name = ''
 
@@ -22,6 +23,7 @@ class Bbox():
         self.ymax = bbox[3]
         self.dct = self.bbox2dict(self.tpl)
         self.geo = self.frame_draw(self.dct, name)
+        self.polygon = self.tile_draw(self.dct)
         # for OSM OVERPASS API we need change the order of lat, lan
         move_coords = [
             str(self.ymin),
@@ -55,4 +57,9 @@ class Bbox():
             ((bbox_dict['xmin'], bbox_dict['ymax']), (bbox_dict['xmin'], bbox_dict['ymin']))
         ])}
         return temp_geodataframe
-     
+
+    def tile_draw(self, bbox_dict) -> Polygon:
+        return Polygon(((bbox_dict['xmin'], bbox_dict['ymin']), 
+                        (bbox_dict['xmax'], bbox_dict['ymin']),
+                        (bbox_dict['xmax'], bbox_dict['ymax']), 
+                        (bbox_dict['xmin'], bbox_dict['ymax'])))

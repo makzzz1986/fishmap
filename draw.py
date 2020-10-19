@@ -53,15 +53,14 @@ class WaveMap():
 
     def __init__(self, file_path, bbox):
         self.bbox = Bbox(bbox, 'source_bbox')
-        self.coastline_geo = read_file(file_path, bbox=bbox, ignore_fields=['FID'])
-        # print(self.coastline_geo)
+        coastline_geo_temp = read_file(file_path, bbox=bbox, ignore_fields=['FID'])
+        coastline_polygon = self.framing(coastline_geo_temp.unary_union, self.bbox.polygon)
+        self.coastline_geo = GeoDataFrame({'geometry': coastline_polygon})
         self.geo_all.append(self.coastline_geo)
         self.coastline_union = self.coastline_geo.unary_union
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
-        print(self.bbox)
-
         self.bbox_real = Bbox(self.coastline_union.bounds, 'bbox_real')
-        # print(self.bbox_real)
+        print(self.bbox, self.bbox_real)
 
 
     def check_incapsulation(self, bbox_1, bbox_2) -> Bbox:
@@ -257,36 +256,42 @@ out;''')
         return True
 
 
+    # cutting geodataframe to precise frame which is Polygon. Return Polygon or MultiPolygon
+    def framing(self, geo, polygon):
+        geo_diff = polygon.difference(geo) # getting the "negative"
+        geo_diff_inverted = polygon.difference(geo_diff) # invertin the "negative"
+        return geo_diff_inverted
+
+
     def tiles_coast_diff(self, matrix, coast_union) -> GeoDataFrame:
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
         start_time = time()
         # print(matrix)
         for row in matrix.itertuples():
             # print('ROW', row)
-            pile_cutted = row.geometry.difference(coast_union)
-            pile_cutted_inverted = row.geometry.difference(pile_cutted)
+            pile_cutted = self.framing(coast_union, row.geometry) 
             
             # if the Polygon is a parallelogram (has 5 points (4 vertices + 1 dublicates the start point))
             # we can filter it, because it isn't connected to the ocean, but is on the edge of map
             ## for Polygons filtering is easy:
-            if pile_cutted_inverted.type == 'Polygon':
-                points_quantity = len(pile_cutted_inverted.exterior.coords.xy[0])
+            if pile_cutted.type == 'Polygon':
+                points_quantity = len(pile_cutted.exterior.coords.xy[0])
                 # it is just a parallelogram
                 if points_quantity == 5:
                     pass
                 # it is a shape like L | Г -  - source artifacts
-                elif (points_quantity < 10) and (self.checking_tetris_shape(pile_cutted_inverted)):
+                elif (points_quantity < 10) and (self.checking_tetris_shape(pile_cutted)):
                     pass
                 else:
-                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
+                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted, 
                                                     'type': 'coast_cut',
                                                     'name': row.name}
             ## in case we have pile in the middle of an age which consists of a few polygons,
             ## we should check that all polygons in that tile have the len of 5 vertices
-            elif pile_cutted_inverted.type == 'MultiPolygon':
-                list_pole_length = [len(poly.exterior.coords.xy[0]) for poly in pile_cutted_inverted]
+            elif pile_cutted.type == 'MultiPolygon':
+                list_pole_length = [len(poly.exterior.coords.xy[0]) for poly in pile_cutted]
                 if list_pole_length != [5 for l in range(len(list_pole_length))]:
-                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
+                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted, 
                                                        'type': 'coast_cut',
                                                        'name': row.name}
         print(f'--- {str(time() - start_time)} seconds ---')
@@ -299,7 +304,7 @@ out;''')
 
 
     def splitting_map(self, geo, bounds, side_length=0.25) -> GeoDataFrame:
-        tiles = self.tiling(bounds, side_length)
+        tiles = self.tiling(bounds, side_length, self.precision)
         ### time: 0.95m - old way
 
         ## no need in soil polygons which don't touch the ocean. The source of soil consist of polygons, splitted
@@ -354,13 +359,10 @@ out;''')
             self.geo_all.append(waves_parted)
 
         self.ocean_geo = self.combination(self.geo_all)
-        # print(self.ocean_geo)
-        print(self.bbox_real)
 
 
     def plot(self, show_towns=False, show_bboxes=False) -> None:
         if show_bboxes is True:
-            self.ocean_geo[len(self.ocean_geo)] = self.bbox_real.geo
             self.ocean_geo[len(self.ocean_geo)] = self.bbox.geo
 
         if show_towns is True:
@@ -392,11 +394,11 @@ out;''')
         print('File saved to', filepath)
 
 
-# bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
+# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-portugal.ocean_calculating(precision=0.001, tile_lenght=0.5, debug=False)
+portugal.ocean_calculating(precision=0.001, tile_lenght=0.1, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
