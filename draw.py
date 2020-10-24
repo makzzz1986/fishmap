@@ -26,7 +26,7 @@ def get_sequence(start, end, precision):
 
 class WaveMap():
     bbox = None
-    bbox_real = None
+    # bbox_real = None
     bbox_broadened = None
 
     wave_spec = {
@@ -54,13 +54,13 @@ class WaveMap():
     def __init__(self, file_path, bbox):
         self.bbox = Bbox(bbox, 'source_bbox')
         coastline_geo_temp = read_file(file_path, bbox=bbox, ignore_fields=['FID'])
-        coastline_polygon = self.framing(coastline_geo_temp.unary_union, self.bbox.polygon)
+        coastline_polygon = coastline_geo_temp.unary_union.intersection(self.bbox.polygon)
         self.coastline_geo = GeoDataFrame({'geometry': coastline_polygon})
         self.geo_all.append(self.coastline_geo)
         self.coastline_union = self.coastline_geo.unary_union
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
-        self.bbox_real = Bbox(self.coastline_union.bounds, 'bbox_real')
-        print(self.bbox, self.bbox_real)
+        # self.bbox_real = Bbox(self.coastline_union.bounds, 'bbox_real')
+        print(self.bbox)
 
 
     def check_incapsulation(self, bbox_1, bbox_2) -> Bbox:
@@ -236,10 +236,11 @@ out;''')
                 # print(x_notch[x], y_notch[y], x_notch[x+1], y_notch[y+1])
                 # filter out very narrow tiles
                 if (abs(x - (x+1)) > filter) or (abs(y - (y+1)) > filter):
+                    print(f'Tile: ({x_notch[x]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y+1]}), ({x_notch[x]}, {y_notch[y+1]})')
                     parts_matrix.loc[matrix_counter] = {'geometry': Polygon(((x_notch[x]  , y_notch[y]), 
-                                                                            (x_notch[x+1], y_notch[y]), 
-                                                                            (x_notch[x+1], y_notch[y+1]), 
-                                                                            (x_notch[x]  , y_notch[y+1]))), 
+                                                                             (x_notch[x+1], y_notch[y]), 
+                                                                             (x_notch[x+1], y_notch[y+1]), 
+                                                                             (x_notch[x]  , y_notch[y+1]))), 
                                                         'name': f'{str(x)}x{str(y)}',
                                                         'type': 'tile'}
                     matrix_counter += 1
@@ -256,20 +257,11 @@ out;''')
         return True
 
 
-    # cutting geodataframe to precise frame which is Polygon. Return Polygon or MultiPolygon
-    def framing(self, geo, polygon):
-        geo_diff = polygon.difference(geo) # getting the "negative"
-        geo_diff_inverted = polygon.difference(geo_diff) # invertin the "negative"
-        return geo_diff_inverted
-
-
     def tiles_coast_diff(self, matrix, coast_union) -> GeoDataFrame:
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
         start_time = time()
-        # print(matrix)
         for row in matrix.itertuples():
-            # print('ROW', row)
-            pile_cutted = self.framing(coast_union, row.geometry) 
+            pile_cutted = coast_union.intersection(row.geometry) 
             
             # if the Polygon is a parallelogram (has 5 points (4 vertices + 1 dublicates the start point))
             # we can filter it, because it isn't connected to the ocean, but is on the edge of map
@@ -305,22 +297,23 @@ out;''')
 
     def splitting_map(self, geo, bounds, side_length=0.25) -> GeoDataFrame:
         tiles = self.tiling(bounds, side_length, self.precision)
-        ### time: 0.95m - old way
-
         ## no need in soil polygons which don't touch the ocean. The source of soil consist of polygons, splitted
         ## approximetely by 1 degree Longtitude and Latitude. If we have an area of ~1 - this polygon is surrounded by soil,
         ## no need to check waves on it. So, we can exclude them from the map of waves
         ## ignore UserWarning about area and CRS. We don't care about geographical area!
         without_big_soil_filter = geo['geometry'].area<1
         without_big_soil = geo[without_big_soil_filter]
+        # for i in without_big_soil.itertuples():
+            # print(i.geometry)
         without_big_soil_union = without_big_soil.unary_union
 
-        overlaping = tiles.overlaps(without_big_soil_union)
-        tiles_overlaped = tiles[overlaping]
-        ### time: 1m
+        if len(tiles) > 1: # it means we have the tile != map
+            overlaping = tiles.overlaps(without_big_soil_union)
+            tiles_overlaped = tiles[overlaping]
+        else: # if we have tile == map
+            tiles_overlaped = tiles
         print('Tiles:', str(len(tiles_overlaped)))
         return self.tiles_coast_diff(tiles_overlaped, without_big_soil_union)
-        ### time: 1.17m
 
 
     def bbox_broading(self, frame, adding_lenght=0.1, name='bbox enlarged') -> Bbox:
@@ -333,12 +326,22 @@ out;''')
         return bbox_enlarge
 
 
-    def ocean_calculating(self, precision=0.0001, tile_lenght=0.25, debug=False) -> None:
+    def ocean_calculating(self, precision=0.0001, tile_lenght=0, debug=False) -> None:
+        # if tile_lenght > than map itself, we can equal them
+        if (tile_lenght/abs(self.bbox.xmin - self.bbox.xmax) > 1) or (tile_lenght/abs(self.bbox.ymin - self.bbox.ymax) > 1):
+            tile_lenght = 0
+
+        if tile_lenght == 0:
+            if abs(self.bbox.xmin - self.bbox.xmax) >= abs(self.bbox.ymin - self.bbox.ymax):
+                tile_lenght = abs(self.bbox.xmin - self.bbox.xmax)
+            else:
+                tile_lenght = abs(self.bbox.ymin - self.bbox.ymax)
+
         self.precision = precision
         self.tile_lenght = tile_lenght
 
-        # squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
-        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tile_lenght)
+        # tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tile_lenght)
+        tiles = self.splitting_map(self.coastline_geo, self.coastline_union.bounds, self.tile_lenght)
         for tile in tiles.geometry:
             # getting coordinates of tile's center
             centroid_coordinates = tile.centroid.coords
@@ -366,14 +369,14 @@ out;''')
             self.ocean_geo[len(self.ocean_geo)] = self.bbox.geo
 
         if show_towns is True:
-            towns = self.set_towns(self.bbox_real, place_regexp='city')
+            towns = self.set_towns(self.bbox, place_regexp='city')
             self.ocean_geo = self.combination([self.ocean_geo, towns])
 
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
         plt.annotate(
             text=f'Precision: {str(self.precision)}\nTiling: {str(self.tile_lenght)}',
-            xy=(self.bbox_real.xmin, self.bbox_real.ymax),
+            xy=(self.bbox.xmin, self.bbox.ymax),
             verticalalignment='top'
         )
 
@@ -399,6 +402,7 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-portugal.ocean_calculating(precision=0.001, tile_lenght=0.1, debug=True)
+# portugal.ocean_calculating(precision=0.01, tile_lenght=0.5, debug=True)
+portugal.ocean_calculating(precision=0.01, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
