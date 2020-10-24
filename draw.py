@@ -242,7 +242,7 @@ out;''')
                 # print(x_notch[x], y_notch[y], x_notch[x+1], y_notch[y+1])
                 # filter out very narrow tiles
                 if (abs(x - (x+1)) > filter) or (abs(y - (y+1)) > filter):
-                    print(f'Tile: ({x_notch[x]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y+1]}), ({x_notch[x]}, {y_notch[y+1]})')
+                    # print(f'Tile: ({x_notch[x]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y+1]}), ({x_notch[x]}, {y_notch[y+1]})')
                     parts_matrix.loc[matrix_counter] = {'geometry': Polygon(((x_notch[x]  , y_notch[y]), 
                                                                              (x_notch[x+1], y_notch[y]), 
                                                                              (x_notch[x+1], y_notch[y+1]), 
@@ -265,7 +265,7 @@ out;''')
 
     def tiles_coast_diff(self, matrix, coast_union) -> GeoDataFrame:
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
-        start_time = time()
+        # start_time = time()
         for row in matrix.itertuples():
             pile_cutted = coast_union.intersection(row.geometry) 
             
@@ -292,7 +292,7 @@ out;''')
                     tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted, 
                                                        'type': 'coast_cut',
                                                        'name': row.name}
-        print(f'--- {str(time() - start_time)} seconds ---')
+        # print(f'--- {str(time() - start_time)} seconds ---')
         # for i in tiles_diff.itertuples():
         #     if i.geometry.type == 'Polygon':
         #         print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str(len(i.geometry.exterior.coords.xy[0]))}')
@@ -396,11 +396,11 @@ out;''')
         print('File saved to', filepath)
 
 
-bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+# bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
+bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-portugal.ocean_calculating(precision=0.01, tile_dens=1, debug=True)
+portugal.ocean_calculating(precision=0.01, tile_dens=2, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
