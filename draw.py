@@ -48,7 +48,7 @@ class WaveMap():
     waves_geo = None
     ocean_geo = None
     cmap = None
-    tile_lenght = 0.
+    tile_dens = 0.
 
 
     def __init__(self, file_path, bbox):
@@ -221,9 +221,15 @@ out;''')
                             'geometry': towns_points_coord})
 
 
-    def tiling(self, bounds, side_length, filter=0.01) -> GeoDataFrame:
+    def tiling(self, bounds, tile_dens, filter=0.01) -> GeoDataFrame:
         # creating the matrix of tiles through all the map
         parts_matrix = GeoDataFrame({'geometry': [], 'type': [], 'name': []})
+        # finding the largest axis and divide it to density
+        if abs(bounds[0]-bounds[2])/abs(bounds[1]-bounds[3]) > 1:
+            side_length = abs(bounds[0]-bounds[2])/tile_dens
+        else:
+            side_length = abs(bounds[1]-bounds[3])/tile_dens
+        print('Sedi length', side_length)
         ## get length segments from horizontal and vertical
         x_notch = get_sequence(bounds[0], bounds[2], side_length)
         x_notch.append(bounds[2])
@@ -295,8 +301,8 @@ out;''')
         return tiles_diff
 
 
-    def splitting_map(self, geo, bounds, side_length=0.25) -> GeoDataFrame:
-        tiles = self.tiling(bounds, side_length, self.precision)
+    def splitting_map(self, geo, bounds, tile_dens=1) -> GeoDataFrame:
+        tiles = self.tiling(bounds, tile_dens, self.precision)
         ## no need in soil polygons which don't touch the ocean. The source of soil consist of polygons, splitted
         ## approximetely by 1 degree Longtitude and Latitude. If we have an area of ~1 - this polygon is surrounded by soil,
         ## no need to check waves on it. So, we can exclude them from the map of waves
@@ -326,22 +332,15 @@ out;''')
         return bbox_enlarge
 
 
-    def ocean_calculating(self, precision=0.0001, tile_lenght=0, debug=False) -> None:
-        # if tile_lenght > than map itself, we can equal them
-        if (tile_lenght/abs(self.bbox.xmin - self.bbox.xmax) > 1) or (tile_lenght/abs(self.bbox.ymin - self.bbox.ymax) > 1):
-            tile_lenght = 0
-
-        if tile_lenght == 0:
-            if abs(self.bbox.xmin - self.bbox.xmax) >= abs(self.bbox.ymin - self.bbox.ymax):
-                tile_lenght = abs(self.bbox.xmin - self.bbox.xmax)
-            else:
-                tile_lenght = abs(self.bbox.ymin - self.bbox.ymax)
+    def ocean_calculating(self, precision=0.0001, tile_dens=1, debug=False) -> None:
+        # if tile_dens < than 1 drop it to 1
+        if tile_dens < 1:
+            tile_dens = 1
 
         self.precision = precision
-        self.tile_lenght = tile_lenght
+        self.tile_dens = tile_dens
 
-        # tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tile_lenght)
-        tiles = self.splitting_map(self.coastline_geo, self.coastline_union.bounds, self.tile_lenght)
+        tiles = self.splitting_map(self.coastline_geo, self.coastline_union.bounds, self.tile_dens)
         for tile in tiles.geometry:
             # getting coordinates of tile's center
             centroid_coordinates = tile.centroid.coords
@@ -375,7 +374,7 @@ out;''')
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
         plt.annotate(
-            text=f'Precision: {str(self.precision)}\nTiling: {str(self.tile_lenght)}',
+            text=f'Precision: {str(self.precision)}\nTiling: {str(self.tile_dens)}',
             xy=(self.bbox.xmin, self.bbox.ymax),
             verticalalignment='top'
         )
@@ -402,7 +401,6 @@ bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-# portugal.ocean_calculating(precision=0.01, tile_lenght=0.5, debug=True)
-portugal.ocean_calculating(precision=0.01, debug=True)
+portugal.ocean_calculating(precision=0.01, tile_dens=1, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
