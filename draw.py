@@ -26,7 +26,7 @@ def get_sequence(start, end, precision):
 
 class WaveMap():
     bbox = None
-    bbox_real = None
+    # bbox_real = None
     bbox_broadened = None
 
     wave_spec = {
@@ -48,20 +48,19 @@ class WaveMap():
     waves_geo = None
     ocean_geo = None
     cmap = None
-    tile_lenght = 0.
+    tile_dens = 0.
 
 
     def __init__(self, file_path, bbox):
         self.bbox = Bbox(bbox, 'source_bbox')
-        self.coastline_geo = read_file(file_path, bbox=bbox, ignore_fields=['FID'])
-        # print(self.coastline_geo)
+        coastline_geo_temp = read_file(file_path, bbox=bbox, ignore_fields=['FID'])
+        coastline_polygon = coastline_geo_temp.unary_union.intersection(self.bbox.polygon)
+        self.coastline_geo = GeoDataFrame({'geometry': coastline_polygon})
         self.geo_all.append(self.coastline_geo)
         self.coastline_union = self.coastline_geo.unary_union
         self.cmap = LinearSegmentedColormap.from_list("", ["green","yellow","red"])
+        # self.bbox_real = Bbox(self.coastline_union.bounds, 'bbox_real')
         print(self.bbox)
-
-        self.bbox_real = Bbox(self.coastline_union.bounds, 'bbox_real')
-        # print(self.bbox_real)
 
 
     def check_incapsulation(self, bbox_1, bbox_2) -> Bbox:
@@ -192,14 +191,14 @@ class WaveMap():
 
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet') -> GeoDataFrame:
         api = overpy.Overpass()
-#         print(f'''
-# (
-#   node
-#   ["place"~"{place_regexp}"]
-#     ({bbox.osm_coords});
-# )->._;
-# (._;>;);
-# out;''')
+        print(f'''
+(
+  node
+  ["place"~"{place_regexp}"]
+    ({bbox.osm_coords});
+)->._;
+(._;>;);
+out;''')
 
         result = api.query(f'''
 (
@@ -222,9 +221,15 @@ out;''')
                             'geometry': towns_points_coord})
 
 
-    def tiling(self, bounds, side_length, filter=0.01) -> GeoDataFrame:
+    def tiling(self, bounds, tile_dens, filter=0.01) -> GeoDataFrame:
         # creating the matrix of tiles through all the map
         parts_matrix = GeoDataFrame({'geometry': [], 'type': [], 'name': []})
+        # finding the largest axis and divide it to density
+        if abs(bounds[0]-bounds[2])/abs(bounds[1]-bounds[3]) > 1:
+            side_length = abs(bounds[0]-bounds[2])/tile_dens
+        else:
+            side_length = abs(bounds[1]-bounds[3])/tile_dens
+        # print('Side length', side_length)
         ## get length segments from horizontal and vertical
         x_notch = get_sequence(bounds[0], bounds[2], side_length)
         x_notch.append(bounds[2])
@@ -237,10 +242,11 @@ out;''')
                 # print(x_notch[x], y_notch[y], x_notch[x+1], y_notch[y+1])
                 # filter out very narrow tiles
                 if (abs(x - (x+1)) > filter) or (abs(y - (y+1)) > filter):
+                    # print(f'Tile: ({x_notch[x]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y]}), ({x_notch[x+1]}, {y_notch[y+1]}), ({x_notch[x]}, {y_notch[y+1]})')
                     parts_matrix.loc[matrix_counter] = {'geometry': Polygon(((x_notch[x]  , y_notch[y]), 
-                                                                            (x_notch[x+1], y_notch[y]), 
-                                                                            (x_notch[x+1], y_notch[y+1]), 
-                                                                            (x_notch[x]  , y_notch[y+1]))), 
+                                                                             (x_notch[x+1], y_notch[y]), 
+                                                                             (x_notch[x+1], y_notch[y+1]), 
+                                                                             (x_notch[x]  , y_notch[y+1]))), 
                                                         'name': f'{str(x)}x{str(y)}',
                                                         'type': 'tile'}
                     matrix_counter += 1
@@ -259,37 +265,34 @@ out;''')
 
     def tiles_coast_diff(self, matrix, coast_union) -> GeoDataFrame:
         tiles_diff = GeoDataFrame({'geometry': [], 'type': [], 'name': []}, crs='EPSG:4326')
-        start_time = time()
-        # print(matrix)
+        # start_time = time()
         for row in matrix.itertuples():
-            # print('ROW', row)
-            pile_cutted = row.geometry.difference(coast_union)
-            pile_cutted_inverted = row.geometry.difference(pile_cutted)
+            pile_cutted = coast_union.intersection(row.geometry) 
             
             # if the Polygon is a parallelogram (has 5 points (4 vertices + 1 dublicates the start point))
             # we can filter it, because it isn't connected to the ocean, but is on the edge of map
             ## for Polygons filtering is easy:
-            if pile_cutted_inverted.type == 'Polygon':
-                points_quantity = len(pile_cutted_inverted.exterior.coords.xy[0])
+            if pile_cutted.type == 'Polygon':
+                points_quantity = len(pile_cutted.exterior.coords.xy[0])
                 # it is just a parallelogram
                 if points_quantity == 5:
                     pass
                 # it is a shape like L | Г -  - source artifacts
-                elif (points_quantity < 10) and (self.checking_tetris_shape(pile_cutted_inverted)):
+                elif (points_quantity < 10) and (self.checking_tetris_shape(pile_cutted)):
                     pass
                 else:
-                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
+                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted, 
                                                     'type': 'coast_cut',
                                                     'name': row.name}
             ## in case we have pile in the middle of an age which consists of a few polygons,
             ## we should check that all polygons in that tile have the len of 5 vertices
-            elif pile_cutted_inverted.type == 'MultiPolygon':
-                list_pole_length = [len(poly.exterior.coords.xy[0]) for poly in pile_cutted_inverted]
+            elif pile_cutted.type == 'MultiPolygon':
+                list_pole_length = [len(poly.exterior.coords.xy[0]) for poly in pile_cutted]
                 if list_pole_length != [5 for l in range(len(list_pole_length))]:
-                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted_inverted, 
+                    tiles_diff.loc[len(tiles_diff)] = {'geometry': pile_cutted, 
                                                        'type': 'coast_cut',
                                                        'name': row.name}
-        print(f'--- {str(time() - start_time)} seconds ---')
+        # print(f'--- {str(time() - start_time)} seconds ---')
         # for i in tiles_diff.itertuples():
         #     if i.geometry.type == 'Polygon':
         #         print(f'This is {str(i.geometry.type)}, name: {str(i.name)}, lens {str(len(i.geometry.exterior.coords.xy[0]))}')
@@ -298,10 +301,8 @@ out;''')
         return tiles_diff
 
 
-    def splitting_map(self, geo, bounds, side_length=0.25) -> GeoDataFrame:
-        tiles = self.tiling(bounds, side_length)
-        ### time: 0.95m - old way
-
+    def splitting_map(self, geo, bounds, tile_dens=1) -> GeoDataFrame:
+        tiles = self.tiling(bounds, tile_dens, self.precision)
         ## no need in soil polygons which don't touch the ocean. The source of soil consist of polygons, splitted
         ## approximetely by 1 degree Longtitude and Latitude. If we have an area of ~1 - this polygon is surrounded by soil,
         ## no need to check waves on it. So, we can exclude them from the map of waves
@@ -310,12 +311,13 @@ out;''')
         without_big_soil = geo[without_big_soil_filter]
         without_big_soil_union = without_big_soil.unary_union
 
-        overlaping = tiles.overlaps(without_big_soil_union)
-        tiles_overlaped = tiles[overlaping]
-        ### time: 1m
+        if len(tiles) > 1: # it means we have the tile != map
+            overlaping = tiles.overlaps(without_big_soil_union)
+            tiles_overlaped = tiles[overlaping]
+        else: # if we have tile == map
+            tiles_overlaped = tiles
         print('Tiles:', str(len(tiles_overlaped)))
         return self.tiles_coast_diff(tiles_overlaped, without_big_soil_union)
-        ### time: 1.17m
 
 
     def bbox_broading(self, frame, adding_lenght=0.1, name='bbox enlarged') -> Bbox:
@@ -328,12 +330,15 @@ out;''')
         return bbox_enlarge
 
 
-    def ocean_calculating(self, precision=0.0001, tile_lenght=0.25, debug=False) -> None:
-        self.precision = precision
-        self.tile_lenght = tile_lenght
+    def ocean_calculating(self, precision=0.0001, tile_dens=1, debug=False) -> None:
+        # if tile_dens < than 1 drop it to 1
+        if tile_dens < 1:
+            tile_dens = 1
 
-        # squares = self.splitting_map(self.coastline_geo, self.coastline_union.bounds)
-        tiles = self.splitting_map(self.coastline_geo, self.bbox_broading(self.coastline_union.bounds, 1).tpl, tile_lenght)
+        self.precision = precision
+        self.tile_dens = tile_dens
+
+        tiles = self.splitting_map(self.coastline_geo, self.coastline_union.bounds, self.tile_dens)
         for tile in tiles.geometry:
             # getting coordinates of tile's center
             centroid_coordinates = tile.centroid.coords
@@ -354,24 +359,21 @@ out;''')
             self.geo_all.append(waves_parted)
 
         self.ocean_geo = self.combination(self.geo_all)
-        # print(self.ocean_geo)
-        print(self.bbox_real)
 
 
     def plot(self, show_towns=False, show_bboxes=False) -> None:
         if show_bboxes is True:
-            self.ocean_geo[len(self.ocean_geo)] = self.bbox_real.geo
             self.ocean_geo[len(self.ocean_geo)] = self.bbox.geo
 
         if show_towns is True:
-            towns = self.set_towns(self.bbox_real, place_regexp='city')
+            towns = self.set_towns(self.bbox, place_regexp='city')
             self.ocean_geo = self.combination([self.ocean_geo, towns])
 
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
         self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'black'})
         plt.annotate(
-            text=f'Precision: {str(self.precision)}\nTiling: {str(self.tile_lenght)}',
-            xy=(self.bbox_real.xmin, self.bbox_real.ymax),
+            text=f'Precision: {str(self.precision)}\nTiling: {str(self.tile_dens)}',
+            xy=(self.bbox.xmin, self.bbox.ymax),
             verticalalignment='top'
         )
 
@@ -393,10 +395,11 @@ out;''')
 
 
 # bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+bbox = (-9.8,38.1,-9.1,39.2) # around Lisbon
+# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-portugal.ocean_calculating(precision=0.001, tile_lenght=0.5, debug=False)
+portugal.ocean_calculating(precision=0.001, tile_dens=10, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
