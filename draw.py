@@ -191,14 +191,14 @@ class WaveMap():
 
     def set_towns(self, bbox, place_regexp='city|town|village|hamlet') -> GeoDataFrame:
         api = overpy.Overpass()
-#         print(f'''
-# (
-#   node
-#   ["place"~"{place_regexp}"]
-#     ({bbox.osm_coords});
-# )->._;
-# (._;>;);
-# out;''')
+        print(f'''
+(
+  node
+  ["place"~"{place_regexp}"]
+    ({bbox.osm_coords});
+)->._;
+(._;>;);
+out;''')
 
         result = api.query(f'''
 (
@@ -229,7 +229,7 @@ out;''')
             side_length = abs(bounds[0]-bounds[2])/tile_dens
         else:
             side_length = abs(bounds[1]-bounds[3])/tile_dens
-        print('Sedi length', side_length)
+        # print('Side length', side_length)
         ## get length segments from horizontal and vertical
         x_notch = get_sequence(bounds[0], bounds[2], side_length)
         x_notch.append(bounds[2])
@@ -309,8 +309,6 @@ out;''')
         ## ignore UserWarning about area and CRS. We don't care about geographical area!
         without_big_soil_filter = geo['geometry'].area<1
         without_big_soil = geo[without_big_soil_filter]
-        # for i in without_big_soil.itertuples():
-            # print(i.geometry)
         without_big_soil_union = without_big_soil.unary_union
 
         if len(tiles) > 1: # it means we have the tile != map
@@ -397,10 +395,11 @@ out;''')
 
 
 # bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
-bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
+bbox = (-9.8,38.1,-9.1,39.2) # around Lisbon
+# bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-portugal.ocean_calculating(precision=0.01, tile_dens=2, debug=True)
+portugal.ocean_calculating(precision=0.001, tile_dens=10, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
