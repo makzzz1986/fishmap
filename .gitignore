@@ -1,0 +1,7 @@
+venv/
+img/
+proto/
+helpers/__pycache__/
+ready_shapes/
+notes
+!img/title.png
