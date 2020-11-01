@@ -17,7 +17,7 @@ class Wave():
         self.utc_timestamp = utc_timestamp
 
     def calculate_dang(self, height, period) -> int:
-        self.dang = height * period * 5
+        self.dang = height * period * 2
         # print('Wave angle:', wave_spec['angle'], 'dang:', wave_spec['dang'])
         # print(wave_spec)
         return round(self.dang)
@@ -51,7 +51,13 @@ class Wave():
                     'wavePeriod',
                     'windWaveDirection',
                     'windWaveHeight',
-                    'windWavePeriod'
+                    'windWavePeriod',
+                    'swellDirection',
+                    'swellHeight',
+                    'swellPeriod',
+                    'secondarySwellPeriod',
+                    'secondarySwellDirection',
+                    'secondarySwellHeight'
                 ]),
                 'start': self.utc_timestamp,  # Convert to UTC timestamp
                 'end': self.utc_timestamp  # we can request data for a few days, can we somehow use it to build few forecast at once?

@@ -366,7 +366,8 @@ out;''')
             self.ocean_geo[len(self.ocean_geo)] = self.bbox.geo
 
         if show_towns is True:
-            towns = self.set_towns(self.bbox, place_regexp='city')
+            # towns = self.set_towns(self.bbox, place_regexp='city')
+            towns = self.set_towns(self.bbox, place_regexp='city|town')
             self.ocean_geo = self.combination([self.ocean_geo, towns])
 
         # self.ocean_geo.plot(legend=True, column='wave_dang', cmap=self.cmap, vmin=0, vmax=100, missing_kwds = {'color': 'tan', "edgecolor": 'darkgoldenrod'})
@@ -383,6 +384,7 @@ out;''')
                 plt.annotate(name, xy=(x, y), xytext=(3, 3), textcoords='offset points', color='darkblue')
 
         plt.gca().set_aspect('equal', adjustable='box')
+        # plt.axis('scaled')
         plt.title('Waves and the coastline intersection')
         plt.show()
 
@@ -396,10 +398,11 @@ out;''')
 
 # bbox = (-9.48859,38.70044,-9.4717541,38.7284016)
 bbox = (-9.8,38.1,-9.1,39.2) # around Lisbon
+# bbox = (-9.3, 38.5, -9.1, 38.7) # Costa Caparica
 # bbox = (-8.0,36.0,-10.0,42.0)  # VERY BIG!
 shape_file = '/home/maksimpisarenko/tmp/osmcoast/land-polygons-split-4326/land_polygons.shp'
 portugal = WaveMap(shape_file, bbox)
 
-portugal.ocean_calculating(precision=0.001, tile_dens=10, debug=True)
+portugal.ocean_calculating(precision=0.0001, tile_dens=4, debug=True)
 portugal.plot(show_towns=True, show_bboxes=False)
 portugal.save_to_file('ready_shapes/portugal')
